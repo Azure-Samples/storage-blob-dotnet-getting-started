@@ -1,3 +1,9 @@
+---
+services: storage
+platforms: dotnet
+author: perrysk-msft
+---
+
 # Azure Storage: Blob
 
 Demonstrate how to use the Blob Storage service.
