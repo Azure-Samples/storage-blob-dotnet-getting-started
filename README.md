@@ -1,7 +1,7 @@
 ---
 services: storage
 platforms: dotnet
-author: perrysk-msft
+author: -
 ---
 
 # Azure Storage: Blob
