@@ -1,7 +1,7 @@
 ---
 services: storage
 platforms: dotnet
-author: 
+author: Azure Storage Team
 ---
 
 # Azure Storage: Blob
