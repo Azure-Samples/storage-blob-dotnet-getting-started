@@ -1,7 +1,7 @@
 ---
 services: storage
 platforms: dotnet
-author: jahogg
+author: jasonnewyork
 ---
 
 # Azure Storage: Blobs
