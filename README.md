@@ -4,9 +4,9 @@ platforms: dotnet
 author: jahogg
 ---
 
-# Azure Storage: Blob
+# Azure Storage: Blobs
 
-Demonstrate how to use the Blob Storage service.
+Demonstrates how to use the Blob Storage service.
 Blob storage stores unstructured data such as text, binary data, documents or media files.
 Blobs can be accessed from anywhere in the world via HTTP or HTTPS.
 
