@@ -22,8 +22,9 @@ This sample can be run using either the Azure Storage Emulator that installs as 
 updating the App.Config file with your AccountName and Key.
 To run the sample using the Storage Emulator (default option):
 
-1. Start the Azure Storage Emulator (once only) by pressing the Start button or the Windows key and searching for it by typing "Azure Storage Emulator". Select it from the list of applications to start it.
-2. Set breakpoints and run the project using F10.
+1. Download and Install the Azure Storage Emulator [here](http://azure.microsoft.com/en-us/downloads/).
+2. Start the Azure Storage Emulator (once only) by pressing the Start button or the Windows key and searching for it by typing "Azure Storage Emulator". Select it from the list of applications to start it.
+3. Set breakpoints and run the project using F10.
 
 To run the sample using the Storage Service
 
