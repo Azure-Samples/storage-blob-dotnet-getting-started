@@ -85,7 +85,8 @@ namespace DataBlobStorageSample
         /// <returns>Task<returns>
         private static async Task BasicStorageBlockBlobOperationsAsync()
         {
-            const string ImageToUpload = "HelloWorld.png";
+            const string imageToUpload = "HelloWorld.png";
+            string blockBlobContainerName = "demoblockblobcontainer-" + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
@@ -96,7 +97,7 @@ namespace DataBlobStorageSample
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference("democontainerblockblob");
+            CloudBlobContainer container = blobClient.GetContainerReference(blockBlobContainerName);
             try
             {
                 await container.CreateIfNotExistsAsync();
@@ -116,8 +117,8 @@ namespace DataBlobStorageSample
 
             // Upload a BlockBlob to the newly created container
             Console.WriteLine("2. Uploading BlockBlob");
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(ImageToUpload);
-            await blockBlob.UploadFromFileAsync(ImageToUpload, FileMode.Open);
+            CloudBlockBlob blockBlob = container.GetBlockBlobReference(imageToUpload);
+            await blockBlob.UploadFromFileAsync(imageToUpload, FileMode.Open);
 
             // List all the blobs in the container 
             Console.WriteLine("3. List Blobs in Container");
@@ -130,17 +131,16 @@ namespace DataBlobStorageSample
 
             // Download a blob to your file system
             Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-            await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", ImageToUpload), FileMode.Create);
+            await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", imageToUpload), FileMode.Create);
 
+            Console.WriteLine("5. Create a read-only snapshot of the blob");            
+            CloudBlockBlob blockBlobSnapshot =  await blockBlob.CreateSnapshotAsync(null, null, null, null);
             // Clean up after the demo 
-            Console.WriteLine("5. Delete block Blob");
-            await blockBlob.DeleteAsync();
+            Console.WriteLine("6. Delete block Blob and all of its snapshots");
+            await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots,null,null,null);
 
-            // When you delete a container it could take several seconds before you can recreate a container with the same
-            // name - hence to enable you to run the demo in quick succession the container is not deleted. If you want 
-            // to delete the container uncomment the line of code below. 
-            //Console.WriteLine("6. Delete Container");
-            //await container.DeleteAsync();
+            Console.WriteLine("7. Delete Container");
+            await container.DeleteIfExistsAsync();
         }
 
         /// <summary>
@@ -150,6 +150,7 @@ namespace DataBlobStorageSample
         private static async Task BasicStoragePageBlobOperationsAsync()
         {
             const string PageBlobName = "samplepageblob";
+            string pageBlobContainerName = "demopageblobcontainer-" + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
@@ -160,7 +161,7 @@ namespace DataBlobStorageSample
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference("democontainerpageblob");
+            CloudBlobContainer container = blobClient.GetContainerReference(pageBlobContainerName);
             await container.CreateIfNotExistsAsync();
 
             // Create a page blob in the newly created container.  
@@ -196,14 +197,11 @@ namespace DataBlobStorageSample
             int bytesRead = await pageBlob.DownloadRangeToByteArrayAsync(samplePagedata, 0, 0, samplePagedata.Count());
 
             // Clean up after the demo 
-            Console.WriteLine("5. Delete page Blob");
-            await pageBlob.DeleteAsync();
+            Console.WriteLine("6. Delete page Blob");
+            await pageBlob.DeleteIfExistsAsync();
 
-            // When you delete a container it could take several seconds before you can recreate a container with the same
-            // name - hence to enable you to run the demo in quick succession the container is not deleted. If you want 
-            // to delete the container uncomment the line of code below. 
-            //Console.WriteLine("6. Delete Container");
-            //await container.DeleteAsync();
+            Console.WriteLine("7. Delete Container");
+            await container.DeleteIfExistsAsync();
         }
 
         /// <summary>
