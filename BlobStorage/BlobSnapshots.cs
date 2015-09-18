@@ -77,7 +77,7 @@ namespace DataBlobStorageSample
         public void CopySnapshotToBlob(CloudBlockBlob sourceBlob, CloudBlobContainer cloudBlobContainer, string newBlobName)
         {
             CloudBlockBlob blobTarget = cloudBlobContainer.GetBlockBlobReference(newBlobName);
-            blobTarget.StartCopyFromBlob(sourceBlob);
+            blobTarget.StartCopy(sourceBlob);
         }
 
         /// <summary>
