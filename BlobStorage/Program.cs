@@ -24,6 +24,7 @@ namespace DataBlobStorageSample
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
+    using BlobStorage;
 
     /// <summary>
     /// Azure Storage Blob Sample - Demonstrate how to use the Blob Storage service. 
@@ -63,28 +64,41 @@ namespace DataBlobStorageSample
         //      3. Set breakpoints and run the project using F10. 
         // 
         // *************************************************************************************************************************
+
         static void Main(string[] args)
         {
-            //JUST UNCOMMENT WHAT YOU WANT TO TRY OUT AND RUN THIS
+            // To run the sample, uncomment the JUST UNCOMMENT WHAT YOU WANT TO TRY OUT AND RUN THIS
 
-            //Console.WriteLine("See Snapshots Work");
-            //SeeSnapshotsWork();
+            Console.WriteLine("Azure Storage Blob Sample\n ");
 
-            //Console.WriteLine("Try Out Leases");
-            //TryOutLeases();
+            // Block blob basics
+            Console.WriteLine("Block Blob Sample");
+            BasicStorageBlockBlobOperationsAsync().Wait();
 
-            ////Console.WriteLine("Azure Storage Blob Sample\n ");
+            // Page blob basics
+            Console.WriteLine("\nPage Blob Sample");
+            BasicStoragePageBlobOperationsAsync().Wait();
 
-            ////// Block blob basics
-            ////Console.WriteLine("Block Blob Sample");
-            ////BasicStorageBlockBlobOperationsAsync().Wait();
+            // Container basics
+            Console.WriteLine("\nContainer Operations");
+            BlobContainerOperations.RunContainerOperations().Wait();
 
-            ////// Page blob basics
-            ////Console.WriteLine("\nPage Blob Sample");
-            ////BasicStoragePageBlobOperationsAsync().Wait();
+            // List containers and blobs
+            Console.WriteLine("\nSample Listing Operations");
+            BlobListingOperations.RunListingOperations().Wait();
 
-            ////Console.WriteLine("Press any key to exit");
-            ////Console.ReadLine();
+            // Configure Storage Analytics for the Blob service
+            Console.WriteLine("\nConfigure Storage Analytics");
+            BlobServiceClientOperations.RunServiceClientOperations().Wait();
+
+            Console.WriteLine("See Snapshots Work");
+            SeeSnapshotsWork();
+
+            Console.WriteLine("Try Out Leases");
+            TryOutLeases();
+
+            Console.WriteLine("Press any key to exit");
+            Console.ReadLine();
         }
 
         //these are the objects needed to access a blob in blob storage 
@@ -105,7 +119,7 @@ namespace DataBlobStorageSample
 
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(Microsoft.Azure.CloudConfigurationManager.GetSetting("StorageConnectionString"));
 
             // Create a blob client for interacting with the blob service.
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
@@ -169,7 +183,7 @@ namespace DataBlobStorageSample
 
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(Microsoft.Azure.CloudConfigurationManager.GetSetting("StorageConnectionString"));
 
             // Create a blob client for interacting with the blob service.
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
@@ -351,7 +365,7 @@ namespace DataBlobStorageSample
                     string newBlobName = theBlob.Metadata[metadataKey];
                     Console.WriteLine("  Copying snapshot to blob {0}", newBlobName);
                     CloudBlockBlob blobTarget = cloudBlobContainer.GetBlockBlobReference(newBlobName);
-                    blobTarget.StartCopyFromBlob(theBlob);
+                    blobTarget.StartCopy(theBlob);
                 }
             }
 
@@ -480,7 +494,7 @@ namespace DataBlobStorageSample
         {
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            cloudStorageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            cloudStorageAccount = CreateStorageAccountFromConnectionString(Microsoft.Azure.CloudConfigurationManager.GetSetting("StorageConnectionString"));
 
             //set the reference to the cloud blob client 
             cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
