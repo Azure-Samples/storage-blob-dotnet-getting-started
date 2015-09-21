@@ -133,8 +133,11 @@ namespace DataBlobStorageSample
             Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
             await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", imageToUpload), FileMode.Create);
 
+            // Create a read-only snapshot of the blob
             Console.WriteLine("5. Create a read-only snapshot of the blob");            
             CloudBlockBlob blockBlobSnapshot =  await blockBlob.CreateSnapshotAsync(null, null, null, null);
+            
+            // Create three new blocks and upload them to the existing blob
             Console.WriteLine("6. Create three new blocks and upload them to the existing blob");
             byte[] buffer = GetRandomBuffer(1024);
             List<string> blocks = GetBlockIdList(3);
@@ -148,6 +151,7 @@ namespace DataBlobStorageSample
             }
             // Important: Please make sure  that you call PutBlockList in order to commit the blocks to the blob
             await blockBlob.PutBlockListAsync(blocks, null, null, null);
+            
             // Clean up after the demo 
             Console.WriteLine("7. Delete block Blob and all of its snapshots");
             await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots,null,null,null);
