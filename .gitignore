@@ -1,0 +1,11 @@
+*.suo
+BlobStorage/bin/Debug/BlobStorage.exe
+*.dll
+*.csproj
+*.xml
+BlobStorage/obj/Debug/*.*
+BlobStorage/bin/Debug/*.*
+*.nupkg
+packages/Newtonsoft.Json.5.0.8/tools/install.ps1
+*.ps1
+packages/WindowsAzure.Storage.5.0.2/nuget.exe
