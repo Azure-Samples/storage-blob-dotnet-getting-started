@@ -135,11 +135,24 @@ namespace DataBlobStorageSample
 
             Console.WriteLine("5. Create a read-only snapshot of the blob");            
             CloudBlockBlob blockBlobSnapshot =  await blockBlob.CreateSnapshotAsync(null, null, null, null);
+            Console.WriteLine("6. Create three new blocks and upload them to the existing blob");
+            byte[] buffer = GetRandomBuffer(1024);
+            List<string> blocks = GetBlockIdList(3);
+
+            foreach (string block in blocks)
+            {
+                using (MemoryStream memoryStream = new MemoryStream(buffer))
+                {
+                    await blockBlob.PutBlockAsync(block, memoryStream, null);
+                }
+            }
+            // Important: Please make sure  that you call PutBlockList in order to commit the blocks to the blob
+            await blockBlob.PutBlockListAsync(blocks, null, null, null);
             // Clean up after the demo 
-            Console.WriteLine("6. Delete block Blob and all of its snapshots");
+            Console.WriteLine("7. Delete block Blob and all of its snapshots");
             await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots,null,null,null);
 
-            Console.WriteLine("7. Delete Container");
+            Console.WriteLine("8. Delete Container");
             await container.DeleteIfExistsAsync();
         }
 
@@ -233,5 +246,32 @@ namespace DataBlobStorageSample
             return storageAccount;
         }
 
+        /// <summary>
+        /// Creates a new random byte array
+        /// </summary>
+        /// <param name="size">Size of the Byte Array</param>
+        /// <returns>byte[] object</returns>
+        public static byte[] GetRandomBuffer(int size)
+        {
+            byte[] buffer = new byte[size];
+            Random random = new Random();
+            random.NextBytes(buffer);
+            return buffer;
+        }
+
+        /// <summary>
+        /// Returns the list of BlockIds
+        /// </summary>
+        /// <param name="count">Number of blocks</param>
+        /// <returns>List(string) object</returns>
+        public static List<string> GetBlockIdList(int count)
+        {
+            List<string> blocks = new List<string>();
+            for (int i = 0; i < count; i++)
+            {
+                blocks.Add(Convert.ToBase64String(Guid.NewGuid().ToByteArray()));
+            }
+            return blocks;
+        }
     }
 }
