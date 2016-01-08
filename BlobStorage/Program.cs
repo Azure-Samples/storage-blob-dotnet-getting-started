@@ -19,6 +19,7 @@ namespace DataBlobStorageSample
     using Microsoft.WindowsAzure;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
+    using Microsoft.WindowsAzure.Storage.Auth;
     using System;
     using System.Collections.Generic;
     using System.IO;
@@ -70,6 +71,9 @@ namespace DataBlobStorageSample
             // Block blob basics
             Console.WriteLine("Block Blob Sample");
             BasicStorageBlockBlobOperationsAsync().Wait();
+
+            // Block Blobs basics using Account SAS
+            BasicStorageBlockBlobOperationsWithAccountSASAsync().Wait();
 
             // Page blob basics
             Console.WriteLine("\nPage Blob Sample");
@@ -144,7 +148,82 @@ namespace DataBlobStorageSample
             Console.WriteLine("7. Delete Container");
             await container.DeleteIfExistsAsync();
         }
+        /// <summary>
+        /// Basic operations to work with block blobs
+        /// </summary>
+        /// <returns>Task<returns>
+        private static async Task BasicStorageBlockBlobOperationsWithAccountSASAsync()
+        {
+            const string imageToUpload = "HelloWorld.png";
+            string blockBlobContainerName = "demoblockblobcontainer-" + Guid.NewGuid();
 
+            // Call GetAccountSASToken to get a sasToken based on the Storage Account Key
+            string sasToken = GetAccountSASToken();
+          
+            // Create an AccountSAS from the SASToken
+            StorageCredentials accountSAS = new StorageCredentials(sasToken);
+
+            //Informational: Print the Account SAS Signature and Token
+            Console.WriteLine();
+            Console.WriteLine("Account SAS Signature: " + accountSAS.SASSignature);
+            Console.WriteLine("Account SAS Token: " + accountSAS.SASToken);
+            Console.WriteLine();
+            
+            // Create a container for organizing blobs within the storage account.
+            Console.WriteLine("1. Creating Container using Account SAS");
+
+            // Get the Container Uri  by passing the Storage Account and the container Name
+            Uri ContainerUri = GetContainerSASUri(blockBlobContainerName);
+
+            // Create a CloudBlobContainer by using the Uri and the sasToken
+            CloudBlobContainer container = new CloudBlobContainer(ContainerUri, new StorageCredentials(sasToken));
+            try
+            {
+                await container.CreateIfNotExistsAsync();
+            }
+            catch (StorageException)
+            {
+                Console.WriteLine("If you are running with the default configuration please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
+                Console.ReadLine();
+                throw;
+            }
+
+            // To view the uploaded blob in a browser, you have two options. The first option is to use a Shared Access Signature (SAS) token to delegate 
+            // access to the resource. See the documentation links at the top for more information on SAS. The second approach is to set permissions 
+            // to allow public access to blobs in this container. Uncomment the line below to use this approach. Then you can view the image 
+            // using: https://[InsertYourStorageAccountNameHere].blob.core.windows.net/democontainer/HelloWorld.png
+            // await container.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
+
+            // Upload a BlockBlob to the newly created container
+            Console.WriteLine("2. Uploading BlockBlob");
+            CloudBlockBlob blockBlob = container.GetBlockBlobReference(imageToUpload);
+            await blockBlob.UploadFromFileAsync(imageToUpload, FileMode.Open);
+
+            // List all the blobs in the container 
+            Console.WriteLine("3. List Blobs in Container");
+            foreach (IListBlobItem blob in container.ListBlobs())
+            {
+                // Blob type will be CloudBlockBlob, CloudPageBlob or CloudBlobDirectory
+                // Use blob.GetType() and cast to appropriate type to gain access to properties specific to each type
+                Console.WriteLine("- {0} (type: {1})", blob.Uri, blob.GetType());
+            }
+
+            // Download a blob to your file system
+            Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
+            await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", imageToUpload), FileMode.Create);
+
+            // Create a read-only snapshot of the blob
+            Console.WriteLine("5. Create a read-only snapshot of the blob");
+            CloudBlockBlob blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
+
+            // Clean up after the demo 
+            Console.WriteLine("6. Delete block Blob and all of its snapshots");
+            await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
+
+            Console.WriteLine("7. Delete Container");
+            await container.DeleteIfExistsAsync();
+
+        }
         /// <summary>
         /// Basic operations to work with page blobs
         /// </summary>
@@ -204,6 +283,53 @@ namespace DataBlobStorageSample
 
             Console.WriteLine("7. Delete Container");
             await container.DeleteIfExistsAsync();
+        }
+
+        /// <summary>
+        /// Creates the Container SAS Uri.  
+        /// </summary>
+        /// <param name="storageAccount">The storage account object</param>
+        /// <param name="containerName">The BlockBlob container Name</param>
+        /// <returns>Uri</returns>
+        private static Uri GetContainerSASUri(string containerName)
+        {
+            // Retrieve storage account information from connection string
+            // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
+            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+
+            return new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + "/" + containerName);
+        }
+
+        /// <summary>
+        /// Creates an Account SAS Token
+        /// </summary>
+        /// <param name="storageAccount">The storage account object</param>
+        /// <returns>sasToken</returns>
+        private static string GetAccountSASToken()
+        {
+            // Retrieve storage account information from connection string
+            // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
+            CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+
+            // Create a new access policy for the account with the following properties:
+            // Permissions: Read, Write, List, Create, Delete
+            // ResourceType: Container
+            // Expires in 24 hours
+            // Protocols: Https or Http (As Emulator does not yet support Https)
+            SharedAccessAccountPolicy policy = new SharedAccessAccountPolicy()
+            {
+                Permissions = SharedAccessAccountPermissions.Read | SharedAccessAccountPermissions.Write | SharedAccessAccountPermissions.List | SharedAccessAccountPermissions.Create | SharedAccessAccountPermissions.Delete,
+                Services = SharedAccessAccountServices.Blob,
+                ResourceTypes = SharedAccessAccountResourceTypes.Container | SharedAccessAccountResourceTypes.Object,
+                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
+                Protocols = SharedAccessProtocol.HttpsOrHttp
+            };
+
+            // Create new storage credentials using the SAS token.
+            string sasToken = storageAccount.GetSharedAccessSignature(policy);
+
+            // Return the SASToken
+            return sasToken;
         }
 
         /// <summary>
