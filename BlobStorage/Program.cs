@@ -297,7 +297,7 @@ namespace DataBlobStorageSample
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
             CloudStorageAccount storageAccount = CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
 
-            return new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + "/" + containerName);
+            return new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + containerName);
         }
 
         /// <summary>
