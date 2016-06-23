@@ -5,7 +5,7 @@ BlobStorage/bin/Debug/BlobStorage.exe
 *.xml
 BlobStorage/obj/Debug/*.*
 BlobStorage/bin/Debug/*.*
-BlobStorage/StyleCop.*
+BlobStorage/StyleCop.cache
 *.nupkg
 packages/*
 *.ps1
