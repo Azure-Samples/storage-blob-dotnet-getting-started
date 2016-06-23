@@ -6,6 +6,5 @@ BlobStorage/bin/Debug/BlobStorage.exe
 BlobStorage/obj/Debug/*.*
 BlobStorage/bin/Debug/*.*
 *.nupkg
-packages/Newtonsoft.Json.5.0.8/tools/install.ps1
+packages/*
 *.ps1
-packages/WindowsAzure.Storage.5.0.2/nuget.exe
