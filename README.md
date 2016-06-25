@@ -1,7 +1,7 @@
 ---
 services: storage
 platforms: dotnet
-author: perrysk-msft
+author: tamram
 ---
 
 # Getting Started with Azure Blob Service in .NET
