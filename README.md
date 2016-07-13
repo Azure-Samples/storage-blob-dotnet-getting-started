@@ -4,7 +4,7 @@ platforms: dotnet
 author: tamram
 ---
 
-# Getting Started with Azure Blob Service in .NET
+# Getting Started with Azure Blob Storage in .NET
 
 Demonstrates how to use the Blob Storage service.
 Blob storage stores unstructured data such as text, binary data, documents or media files.
