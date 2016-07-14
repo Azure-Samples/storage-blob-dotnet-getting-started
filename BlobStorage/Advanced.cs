@@ -36,8 +36,8 @@ namespace BlobStorage
         // Prefix for containers created by the sample.
         private const string ContainerPrefix = "sample-";
 
-        // Variable for saving the user's service property settings.
-        private static ServiceProperties properties = null;
+        // Prefix for blob created by the sample.
+        private const string BlobPrefix = "sample-blob-";
 
         /// <summary>
         /// Calls the advanced samples for Blob storage.
@@ -62,7 +62,7 @@ namespace BlobStorage
                 userServiceProperties = await blobClient.GetServicePropertiesAsync();
 
                 // Get a reference to a sample container.
-                container = CreateSampleContainer(blobClient).Result;
+                container = await CreateSampleContainer(blobClient);
 
                 // Call Blob service client samples. 
                 await CallBlobClientSamples(blobClient);
@@ -162,7 +162,6 @@ namespace BlobStorage
             await ManageContainerLeases(container.ServiceClient);
         }
 
-
         /// <summary>
         /// Calls samples that demonstrate how to work with blobs.
         /// </summary>
@@ -170,6 +169,13 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CallBlobSamples(CloudBlobContainer container)
         {
+            // Create a blob with a random name.
+            CloudBlockBlob blob = await CreateRandomlyNamedBlockBlob(container);
+
+            // Get a reference to the blob created above from the server.
+            // This call will fail if the blob does not yet exist.
+            await GetExistingBlobReference(container, blob.Name);
+
             // Create a specified number of block blobs in a flat structure.
             await CreateSequentiallyNamedBlockBlobs(container, 5);
 
@@ -193,7 +199,6 @@ namespace BlobStorage
             // Upload a blob in blocks.
             await UploadBlobInBlocks(container);
         }
-
 
         /// <summary>
         /// Calls shared access signature samples for both containers and blobs.
@@ -295,7 +300,6 @@ namespace BlobStorage
                 throw;
             }
         }
-
 
         /// <summary>
         /// Gets the Blob service stats for the secondary endpoint for an RA-GRS (read-access geo-redundant) storage account.
@@ -430,7 +434,7 @@ namespace BlobStorage
         private static async Task<CloudBlobContainer> CreateSampleContainer(CloudBlobClient blobClient)
         {
             // Name sample container based on new GUID, to ensure uniqueness.
-            string containerName = ContainerPrefix + Guid.NewGuid().ToString();
+            string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Get a reference to a sample container.
             CloudBlobContainer container = blobClient.GetContainerReference(containerName);
@@ -451,7 +455,6 @@ namespace BlobStorage
 
             return container;
         }
-
 
         /// <summary>
         /// Add some sample metadata to the container.
@@ -476,7 +479,6 @@ namespace BlobStorage
                 throw;
             }
         }
-
 
         /// <summary>
         /// Sets the anonymous access level.
@@ -506,7 +508,6 @@ namespace BlobStorage
                 throw;
             }
         }
-
         
         /// <summary>
         /// Reads the container's properties.
@@ -531,7 +532,6 @@ namespace BlobStorage
 
             Console.WriteLine();
         }
-
 
         /// <summary>
         /// Demonstrates container lease states: available, breaking, broken, and expired.
@@ -562,7 +562,7 @@ namespace BlobStorage
                 */
 
                 // Lease is available on the new container. Acquire the lease and delete the leased container.
-                container1 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid().ToString());
+                container1 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
                 await container1.CreateIfNotExistsAsync();
 
                 // Get container properties to see the available lease.
@@ -585,7 +585,7 @@ namespace BlobStorage
                     Case 2: Lease is breaking
                 */
 
-                container2 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid().ToString());
+                container2 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
                 await container2.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
@@ -609,7 +609,7 @@ namespace BlobStorage
                     Case 3: Lease is broken
                 */
 
-                container3 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid().ToString());
+                container3 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
                 await container3.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
@@ -630,7 +630,7 @@ namespace BlobStorage
                     Case 4: Lease has expired.
                 */
 
-                container4 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid().ToString());
+                container4 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
                 await container4.CreateIfNotExistsAsync();
                 
                 // Acquire the lease.
@@ -651,7 +651,7 @@ namespace BlobStorage
                     Case 5: Attempt to delete leased container without lease ID.
                 */
 
-                container5 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid().ToString());
+                container5 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
                 await container5.CreateIfNotExistsAsync();
                 
                 // Acquire the lease.
@@ -697,7 +697,6 @@ namespace BlobStorage
                 }
             }
         }
-
 
         /// <summary>
         /// Reads the lease properties for the container.
@@ -756,7 +755,6 @@ namespace BlobStorage
             }
         }
 
-
         /// <summary>
         /// Creates a shared access policy on the container.
         /// </summary>
@@ -769,6 +767,8 @@ namespace BlobStorage
             // The access policy provides create, write, read, list, and delete permissions.
             SharedAccessBlobPolicy sharedPolicy = new SharedAccessBlobPolicy()
             {
+                // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
+                // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
                 SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
                 Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.List |
                     SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.Create | SharedAccessBlobPermissions.Delete
@@ -781,7 +781,6 @@ namespace BlobStorage
             permissions.SharedAccessPolicies.Add(policyName, sharedPolicy);
             await container.SetPermissionsAsync(permissions);
         }
-
 
         /// <summary>
         /// Returns a URI containing a SAS for the blob container.
@@ -800,7 +799,8 @@ namespace BlobStorage
                 // to construct a shared access policy that is saved to the container's shared access policies. 
                 SharedAccessBlobPolicy adHocPolicy = new SharedAccessBlobPolicy()
                 {
-                    // Omit SAS start time to avoid clock skew. Start time is assumed to be the time when the service receives the request.
+                    // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
+                    // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
                     SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
                     Permissions = SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.List
                 };
@@ -825,7 +825,6 @@ namespace BlobStorage
             // Return the URI string for the container, including the SAS token.
             return container.Uri + sasContainerToken;
         }
-
 
         /// <summary>
         /// Tests a container SAS to determine which operations it allows.
@@ -968,7 +967,6 @@ namespace BlobStorage
 
         #endregion
 
-
         #region AllBlobTypeSamples
 
         /// <summary>
@@ -1045,7 +1043,6 @@ namespace BlobStorage
 
             Console.WriteLine();
         }
-
 
         /// <summary>
         /// Reads the virtual directory's properties.
@@ -1125,7 +1122,6 @@ namespace BlobStorage
             }
         }
 
-
         /// <summary>
         /// Lists blobs in the specified container using a hierarchical listing, and calls this method recursively to return the contents of each 
         /// virtual directory. Reads the properties on each blob or virtual directory returned and writes them to the console window.
@@ -1189,8 +1185,77 @@ namespace BlobStorage
 
         #endregion
 
-
         #region BlockBlobSamples
+
+        /// <summary>
+        /// Creates a randomly named block blob.
+        /// </summary>
+        /// <param name="container">The container.</param>
+        /// <returns>A Task object.</returns>
+        private static async Task<CloudBlockBlob> CreateRandomlyNamedBlockBlob(CloudBlobContainer container)
+        {
+            // Get a reference to a blob that does not yet exist.
+            // The GetBlockBlobReference method does not make a request to the service, but only creates the object in memory.
+            string blobName = BlobPrefix + Guid.NewGuid();
+            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+
+            // For the purposes of the sample, check to see whether the blob exists.
+            Console.WriteLine("Blob {0} exists? {1}", blobName, await blob.ExistsAsync());
+
+            try
+            {
+                // Writing to the blob creates it on the service.
+                await blob.UploadTextAsync(string.Format("This is a blob named {0}", blobName));
+            }
+            catch (StorageException e)
+            {
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
+            }
+
+            // Check again to see whether the blob exists.
+            Console.WriteLine("Blob {0} exists? {1}", blobName, await blob.ExistsAsync());
+
+            return blob;
+        }
+
+        /// <summary>
+        /// Gets a reference to a blob by making a request to the service.
+        /// </summary>
+        /// <param name="container">The container.</param>
+        /// <param name="blobName">The blob name.</param>
+        /// <returns>A Task object.</returns>
+        private static async Task GetExistingBlobReference(CloudBlobContainer container, string blobName)
+        {
+            try
+            {
+                // Get a reference to a blob with a request to the server.
+                // If the blob does not exist, this call will fail with a 404 (Not Found).
+                ICloudBlob blob = await container.GetBlobReferenceFromServerAsync(blobName);
+
+                // The previous call gets the blob's properties, so it's not necessary to call FetchAttributes
+                // to read a property.
+                Console.WriteLine("Blob {0} was last modified at {1} local time.", blobName,
+                    blob.Properties.LastModified.Value.LocalDateTime);
+            }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    Console.WriteLine("Blob {0} does not exist.", blobName);
+                    Console.WriteLine("Additional error information: " + e.Message);
+                }
+                else
+                {
+                    Console.WriteLine(e.Message);
+                    Console.ReadLine();
+                    throw;
+                }
+            }
+
+            Console.WriteLine();
+        }
 
         /// <summary>
         /// Creates the specified number of sequentially named block blobs, in a flat structure.
@@ -1238,7 +1303,6 @@ namespace BlobStorage
                 throw;
             }
         }
-
 
         /// <summary>
         /// Creates the specified number of nested block blobs at a specified number of levels.
@@ -1295,7 +1359,6 @@ namespace BlobStorage
                 throw;
             }
         }
-
 
         /// <summary>
         /// Gets a reference to a blob created previously, and copies it to a new blob in the same container.
@@ -1465,7 +1528,7 @@ namespace BlobStorage
             rnd.NextBytes(randomBytes);
 
             // Get a reference to a new block blob.
-            CloudBlockBlob blob = container.GetBlockBlobReference("sample-blob-" + Guid.NewGuid().ToString());
+            CloudBlockBlob blob = container.GetBlockBlobReference("sample-blob-" + Guid.NewGuid());
 
             // Specify the block size as 256 KB.
             int blockSize = 256 * 1024;
@@ -1551,7 +1614,6 @@ namespace BlobStorage
             }
         }
 
-
         /// <summary>
         /// Reads the blob's block list, and indicates whether the blob has been committed.
         /// </summary>
@@ -1581,7 +1643,6 @@ namespace BlobStorage
             Console.WriteLine();
         }
 
-
         /// <summary>
         /// Returns a URI containing a SAS for the blob.
         /// </summary>
@@ -1604,7 +1665,8 @@ namespace BlobStorage
                 // to construct a shared access policy that is saved to the container's shared access policies. 
                 SharedAccessBlobPolicy adHocSAS = new SharedAccessBlobPolicy()
                 {
-                    // Omit SAS start time to avoid clock skew. Start time is assumed to be the time when the service receives the request.
+                    // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
+                    // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
                     SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
                     Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.Create
                 };
@@ -1628,7 +1690,6 @@ namespace BlobStorage
             // Return the URI string for the container, including the SAS token.
             return blob.Uri + sasBlobToken;
         }
-
 
         /// <summary>
         /// Tests a blob SAS to determine which operations it allows.
