@@ -36,6 +36,9 @@ namespace BlobStorage
     /// </summary>
     public static class GettingStarted
     {
+        // Prefix for containers created by the sample.
+        private const string ContainerPrefix = "sample-";
+
         /// <summary>
         /// Calls each of the methods in the getting started samples.
         /// </summary>
@@ -60,7 +63,7 @@ namespace BlobStorage
         private static async Task BasicStorageBlockBlobOperationsAsync()
         {
             const string ImageToUpload = "HelloWorld.png";
-            string blockBlobContainerName = "demoblockblobcontainer-" + DateTime.Now.Ticks.ToString();
+            string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
             CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
@@ -70,7 +73,7 @@ namespace BlobStorage
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference(blockBlobContainerName);
+            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
             try
             {
                 // The call below will fail if the sample is configured to use the storage emulator in the connection string, but 
@@ -100,7 +103,9 @@ namespace BlobStorage
             blockBlob.Properties.ContentType = "image/png";
             await blockBlob.UploadFromFileAsync(ImageToUpload);
 
-            // List all the blobs in the container 
+            // List all the blobs in the container.
+            /// Note that the ListBlobs method is called synchronously, for the purposes of the sample. However, in a real-world
+            /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
             Console.WriteLine("3. List Blobs in Container");
             foreach (IListBlobItem blob in container.ListBlobs())
             {
@@ -117,10 +122,14 @@ namespace BlobStorage
             Console.WriteLine("5. Create a read-only snapshot of the blob");
             CloudBlockBlob blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
 
-            // Clean up after the demo 
-            Console.WriteLine("6. Delete block Blob and all of its snapshots");
+            // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
+            // It is included for the purposes of the example. 
+            Console.WriteLine("6. Delete block blob and all of its snapshots");
             await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
 
+            // Note that deleting the container also deletes any blobs in the container, and their snapshots.
+            // In the case of the sample, we delete the blob and its snapshots, and then the container,
+            // to show how to delete each kind of resource.
             Console.WriteLine("7. Delete Container");
             await container.DeleteIfExistsAsync();
         }
@@ -132,7 +141,7 @@ namespace BlobStorage
         private static async Task BasicStorageBlockBlobOperationsWithAccountSASAsync()
         {
             const string ImageToUpload = "HelloWorld.png";
-            string blockBlobContainerName = "demoblockblobcontainer-" + Guid.NewGuid();
+            string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Get an account SAS token.
             string sasToken = GetAccountSASToken();
@@ -147,7 +156,7 @@ namespace BlobStorage
             Console.WriteLine();
 
             // Get the URI for the container.
-            Uri containerUri = GetContainerUri(blockBlobContainerName);
+            Uri containerUri = GetContainerUri(containerName);
 
             // Get a reference to a container using the URI and the SAS token.
             CloudBlobContainer container = new CloudBlobContainer(containerUri, accountSAS);
@@ -230,7 +239,7 @@ namespace BlobStorage
         private static async Task BasicStoragePageBlobOperationsAsync()
         {
             const string PageBlobName = "samplepageblob";
-            string pageBlobContainerName = "demopageblobcontainer-" + Guid.NewGuid();
+            string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
             CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
@@ -240,7 +249,7 @@ namespace BlobStorage
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference(pageBlobContainerName);
+            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
             await container.CreateIfNotExistsAsync();
 
             // Create a page blob in the newly created container.  
@@ -294,7 +303,18 @@ namespace BlobStorage
             // Retrieve storage account information from connection string
             CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
 
-            return new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + containerName);
+            Uri containerUri;
+
+            if (storageAccount == CloudStorageAccount.DevelopmentStorageAccount)
+            {
+                containerUri = new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + "/" + containerName);
+            }
+            else
+            {
+                containerUri = new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + containerName);
+            }
+
+            return containerUri;
         }
 
         /// <summary>
@@ -313,6 +333,8 @@ namespace BlobStorage
             // Protocols: HTTPS or HTTP (note that the storage emulator does not support HTTPS)
             SharedAccessAccountPolicy policy = new SharedAccessAccountPolicy()
             {
+                // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
+                // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
                 Permissions = SharedAccessAccountPermissions.Read | SharedAccessAccountPermissions.Write | SharedAccessAccountPermissions.List | SharedAccessAccountPermissions.Create | SharedAccessAccountPermissions.Delete,
                 Services = SharedAccessAccountServices.Blob,
                 ResourceTypes = SharedAccessAccountResourceTypes.Container | SharedAccessAccountResourceTypes.Object,
