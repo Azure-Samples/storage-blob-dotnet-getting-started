@@ -75,6 +75,12 @@ namespace BlobStorage
 
                 // Call shared access signature samples (both container and blob).
                 await CallSasSamples(container);
+
+                // CORS Rules
+                await CorsSample(blobClient);
+
+                // Page Blob Ranges
+                await PageRangesSample(blobClient, container);
             }
             catch (StorageException e)
             {
@@ -1827,5 +1833,78 @@ namespace BlobStorage
         }
 
         #endregion
+
+        /// <summary>
+        /// Query the Cross-Origin Resource Sharing (CORS) rules for the Queue service
+        /// </summary>
+        /// <param name="blobClient"></param>
+        private static async Task CorsSample(CloudBlobClient blobClient)
+        {
+            // Set CORS rules
+            Console.WriteLine("Set CORS rules");
+
+            CorsProperties cors = new CorsProperties();
+            CorsRule corsRule = new CorsRule
+            {
+                AllowedHeaders = new List<string> { "*" },
+                AllowedMethods = CorsHttpMethods.Get,
+                AllowedOrigins = new List<string> { "*" },
+                ExposedHeaders = new List<string> { "*" },
+                MaxAgeInSeconds = 3600
+            };
+
+            cors.CorsRules.Add(corsRule);
+            await blobClient.SetServicePropertiesAsync(new ServiceProperties(null, null, null, cors));
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Get a list of valid page ranges for a page blob
+        /// </summary>
+        /// <param name="blobClient"></param>
+        /// <param name="container"></param>
+        /// <returns>A Task object.</returns>
+        private static async Task PageRangesSample(CloudBlobClient blobClient, CloudBlobContainer container)
+        {
+            BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
+            await container.CreateIfNotExistsAsync(requestOptions, null);
+
+            Console.WriteLine("Create Page Blob");
+            CloudPageBlob pageBlob = container.GetPageBlobReference("blob1");
+            pageBlob.Create(4 * 1024);
+
+            Console.WriteLine("Write Pages to Blob");
+            byte[] buffer = GetRandomBuffer(1024);
+            using (MemoryStream memoryStream = new MemoryStream(buffer))
+            {
+                pageBlob.WritePages(memoryStream, 512);
+            }
+
+            using (MemoryStream memoryStream = new MemoryStream(buffer))
+            {
+                pageBlob.WritePages(memoryStream, 3 * 1024);
+            }
+
+            Console.WriteLine("Get Page Ranges");
+            IEnumerable<PageRange> pageRanges = pageBlob.GetPageRanges();
+            foreach (PageRange pageRange in pageRanges)
+            {
+                Console.WriteLine(pageRange.ToString());
+            }
+
+            // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
+            // It is included for the purposes of the example. 
+            Console.WriteLine("Delete page blob");
+            await pageBlob.DeleteIfExistsAsync();
+            Console.WriteLine();
+        }
+
+        private static byte[] GetRandomBuffer(int size)
+        {
+            byte[] buffer = new byte[size];
+            Random random = new Random();
+            random.NextBytes(buffer);
+            return buffer;
+        }
     }
 }
