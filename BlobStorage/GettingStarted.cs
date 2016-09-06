@@ -303,18 +303,7 @@ namespace BlobStorage
             // Retrieve storage account information from connection string
             CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
 
-            Uri containerUri;
-
-            if (storageAccount == CloudStorageAccount.DevelopmentStorageAccount)
-            {
-                containerUri = new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + "/" + containerName);
-            }
-            else
-            {
-                containerUri = new Uri(storageAccount.BlobStorageUri.PrimaryUri.OriginalString + containerName);
-            }
-
-            return containerUri;
+            return storageAccount.CreateCloudBlobClient().GetContainerReference(containerName).Uri;
         }
 
         /// <summary>
