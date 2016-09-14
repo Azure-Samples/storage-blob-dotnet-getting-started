@@ -66,8 +66,7 @@ namespace BlobStorage
             Console.WriteLine("Azure Blob Storage - Getting Started Samples\n");
             GettingStarted.CallBlobGettingStartedSamples();
 
-            // Uncomment the following lines to run the advanced samples.
-            // Console.WriteLine("Azure Blob Storage - Advanced Samples\n ");
+            Console.WriteLine("Azure Blob Storage - Advanced Samples\n ");
             Advanced.CallBlobAdvancedSamples().Wait();
 
             Console.WriteLine();
