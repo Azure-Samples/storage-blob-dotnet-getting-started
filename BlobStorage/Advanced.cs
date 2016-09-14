@@ -80,7 +80,7 @@ namespace BlobStorage
                 await CorsSample(blobClient);
 
                 // Page Blob Ranges
-                await PageRangesSample(blobClient, container);
+                await PageRangesSample(container);
             }
             catch (StorageException e)
             {
@@ -324,9 +324,7 @@ namespace BlobStorage
 
                 // Get the current stats for the secondary.
                 // The call will fail if your storage account does not have RA-GRS enabled.
-                // Change the retry policy for this call so that if it fails, it fails quickly.
-                BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
-                ServiceStats blobStats = await blobClientSecondary.GetServiceStatsAsync(requestOptions, null);
+                ServiceStats blobStats = await blobClientSecondary.GetServiceStatsAsync();
 
                 Console.WriteLine("Geo-replication status: {0}", blobStats.GeoReplication.Status);
                 Console.WriteLine("Last geo-replication sync time: {0}", blobStats.GeoReplication.LastSyncTime);
@@ -1840,10 +1838,14 @@ namespace BlobStorage
         /// <param name="blobClient"></param>
         private static async Task CorsSample(CloudBlobClient blobClient)
         {
-            // Set CORS rules
-            Console.WriteLine("Set CORS rules");
+            // Get CORS rules
+            Console.WriteLine("Get CORS rules");
 
-            CorsProperties cors = new CorsProperties();
+            ServiceProperties serviceProperties = await blobClient.GetServicePropertiesAsync();
+
+            // Add CORS rule
+            Console.WriteLine("Add CORS rule");
+
             CorsRule corsRule = new CorsRule
             {
                 AllowedHeaders = new List<string> { "*" },
@@ -1853,20 +1855,19 @@ namespace BlobStorage
                 MaxAgeInSeconds = 3600
             };
 
-            cors.CorsRules.Add(corsRule);
-            await blobClient.SetServicePropertiesAsync(new ServiceProperties(null, null, null, cors));
+            serviceProperties.Cors.CorsRules.Add(corsRule);
+            await blobClient.SetServicePropertiesAsync(serviceProperties);
             Console.WriteLine();
         }
 
         /// <summary>
         /// Get a list of valid page ranges for a page blob
         /// </summary>
-        /// <param name="blobClient"></param>
         /// <param name="container"></param>
         /// <returns>A Task object.</returns>
-        private static async Task PageRangesSample(CloudBlobClient blobClient, CloudBlobContainer container)
+        private static async Task PageRangesSample(CloudBlobContainer container)
         {
-            BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
+            BlobRequestOptions requestOptions = new BlobRequestOptions { RetryPolicy = new ExponentialRetry(TimeSpan.FromSeconds(1), 3) };
             await container.CreateIfNotExistsAsync(requestOptions, null);
 
             Console.WriteLine("Create Page Blob");
