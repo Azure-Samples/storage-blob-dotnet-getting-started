@@ -71,7 +71,7 @@ namespace BlobStorage
 
             Console.WriteLine();
             Console.WriteLine("Press any key to exit.");
-            Console.ReadLine();
+            Console.ReadKey();
         }
     }
 }
