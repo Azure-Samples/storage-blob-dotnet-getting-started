@@ -16,6 +16,11 @@
 
 namespace BlobStorage
 {
+    using Microsoft.Azure;
+    using Microsoft.Azure.Storage;
+    using Microsoft.Azure.Storage.Blob;
+    using Microsoft.Azure.Storage.RetryPolicies;
+    using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
     using System.Collections.Generic;
     using System.IO;
@@ -24,12 +29,6 @@ namespace BlobStorage
     using System.ServiceModel.Channels;
     using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.Azure;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Auth;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.RetryPolicies;
-    using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 
     /// <summary>
     /// Advanced samples for Blob storage, including samples demonstrating a variety of client library classes and methods.
@@ -112,7 +111,6 @@ namespace BlobStorage
                 // The sample code deletes any containers it created if it runs completely. However, if you need to delete containers 
                 // created by previous sessions (for example, if you interrupted the running code before it completed), 
                 // you can uncomment and run the following line to delete them.
-
                 //await DeleteContainersWithPrefix(blobClient, ContainerPrefix);
 
                 // Return the service properties/storage analytics settings to their original values.
@@ -137,9 +135,6 @@ namespace BlobStorage
 
             // Configure storage analytics (metrics and logging) on Blob storage.
             await ConfigureBlobAnalyticsAsync(blobClient);
-
-            // Get geo-replication stats for Blob storage.
-            await GetServiceStatsForSecondaryAsync(blobClient);
 
             // List all containers in the storage account.
             ListAllContainers(blobClient, "sample-");
@@ -329,7 +324,7 @@ namespace BlobStorage
                 serviceProperties.MinuteMetrics.Version = "1.0";
 
                 // Set the default service version to be used for anonymous requests.
-                serviceProperties.DefaultServiceVersion = "2015-04-05";
+                serviceProperties.DefaultServiceVersion = "2018-11-09";
 
                 // Set the service properties.
                 await blobClient.SetServicePropertiesAsync(serviceProperties);            
@@ -339,48 +334,6 @@ namespace BlobStorage
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
                 throw;
-            }
-        }
-
-        /// <summary>
-        /// Gets the Blob service stats for the secondary endpoint for an RA-GRS (read-access geo-redundant) storage account.
-        /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        /// <returns>A Task object.</returns>
-        private static async Task GetServiceStatsForSecondaryAsync(CloudBlobClient blobClient)
-        {
-            try
-            {
-                // Get the URI for the secondary endpoint for Blob storage.
-                Uri secondaryUri = blobClient.StorageUri.SecondaryUri;
-
-                // Create a new service client based on the secondary endpoint.
-                CloudBlobClient blobClientSecondary = new CloudBlobClient(secondaryUri, blobClient.Credentials);
-
-                // Get the current stats for the secondary.
-                // The call will fail if your storage account does not have RA-GRS enabled.
-                ServiceStats blobStats = await blobClientSecondary.GetServiceStatsAsync();
-
-                Console.WriteLine("Geo-replication status: {0}", blobStats.GeoReplication.Status);
-                Console.WriteLine("Last geo-replication sync time: {0}", blobStats.GeoReplication.LastSyncTime);
-                Console.WriteLine();
-            }
-            catch (StorageException e)
-            {
-                // In this case, we do not re-throw the exception, so that the sample will continue to run even if RA-GRS is not enabled
-                // for this storage account.
-                if (e.RequestInformation.HttpStatusCode == 403)
-                {
-                    Console.WriteLine("This storage account does not appear to support RA-GRS.");
-                    Console.WriteLine("More information: {0}", e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
             }
         }
 
