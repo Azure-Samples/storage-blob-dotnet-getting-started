@@ -1,5 +1,5 @@
 ﻿using System.ServiceModel.Channels;
-using Microsoft.WindowsAzure.Storage;
+using Microsoft.Azure.Storage;
 
 namespace BlobStorage
 {

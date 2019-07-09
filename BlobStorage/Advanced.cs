@@ -25,11 +25,11 @@ namespace BlobStorage
     using System.Text;
     using System.Threading.Tasks;
     using Microsoft.Azure;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Auth;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.RetryPolicies;
-    using Microsoft.WindowsAzure.Storage.Shared.Protocol;
+    using Microsoft.Azure.Storage;
+    using Microsoft.Azure.Storage.Auth;
+    using Microsoft.Azure.Storage.Blob;
+    using Microsoft.Azure.Storage.RetryPolicies;
+    using Microsoft.Azure.Storage.Shared.Protocol;
 
     /// <summary>
     /// Advanced samples for Blob storage, including samples demonstrating a variety of client library classes and methods.
@@ -561,7 +561,7 @@ namespace BlobStorage
         /// <returns>A CloudBlobContainer object.</returns>
         private static async Task<CloudBlobContainer> CreateSampleContainerAsync(CloudBlobClient blobClient)
         {
-            // Name sample container based on new GUID, to ensure uniqueness.
+            // Name the sample container based on new GUID, to ensure uniqueness.
             string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Get a reference to a sample container.

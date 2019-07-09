@@ -19,7 +19,7 @@ namespace BlobStorage
 {
     using System;
     using Microsoft.Azure;
-    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.Azure.Storage;
 
     /// <summary>
     /// Contains public method for validating the storage connection string.
