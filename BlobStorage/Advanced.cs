@@ -16,6 +16,11 @@
 
 namespace BlobStorage
 {
+    using Microsoft.Azure;
+    using Microsoft.Azure.Storage;
+    using Microsoft.Azure.Storage.Blob;
+    using Microsoft.Azure.Storage.RetryPolicies;
+    using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
     using System.Collections.Generic;
     using System.IO;
@@ -88,6 +93,12 @@ namespace BlobStorage
 
                 // Call shared access signature samples (both container and blob).
                 await CallSasSamples(container);
+
+                // CORS Rules
+                await CorsSample(blobClient);
+
+                // Page Blob Ranges
+                await PageRangesSample(container);
             }
             catch (StorageException e)
             {
@@ -106,7 +117,6 @@ namespace BlobStorage
                 // The sample code deletes any containers it created if it runs completely. However, if you need to delete containers 
                 // created by previous sessions (for example, if you interrupted the running code before it completed), 
                 // you can uncomment and run the following line to delete them.
-
                 //await DeleteContainersWithPrefix(blobClient, ContainerPrefix);
 
                 // Return the service properties/storage analytics settings to their original values.
@@ -131,9 +141,6 @@ namespace BlobStorage
 
             // Configure storage analytics (metrics and logging) on Blob storage.
             await ConfigureBlobAnalyticsAsync(blobClient);
-
-            // Get geo-replication stats for Blob storage.
-            await GetServiceStatsForSecondaryAsync(blobClient);
 
             // List all containers in the storage account.
             ListAllContainers(blobClient, "sample-");
@@ -323,7 +330,7 @@ namespace BlobStorage
                 serviceProperties.MinuteMetrics.Version = "1.0";
 
                 // Set the default service version to be used for anonymous requests.
-                serviceProperties.DefaultServiceVersion = "2015-04-05";
+                serviceProperties.DefaultServiceVersion = "2018-11-09";
 
                 // Set the service properties.
                 await blobClient.SetServicePropertiesAsync(serviceProperties);            
@@ -333,50 +340,6 @@ namespace BlobStorage
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
                 throw;
-            }
-        }
-
-        /// <summary>
-        /// Gets the Blob service stats for the secondary endpoint for an RA-GRS (read-access geo-redundant) storage account.
-        /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        /// <returns>A Task object.</returns>
-        private static async Task GetServiceStatsForSecondaryAsync(CloudBlobClient blobClient)
-        {
-            try
-            {
-                // Get the URI for the secondary endpoint for Blob storage.
-                Uri secondaryUri = blobClient.StorageUri.SecondaryUri;
-
-                // Create a new service client based on the secondary endpoint.
-                CloudBlobClient blobClientSecondary = new CloudBlobClient(secondaryUri, blobClient.Credentials);
-
-                // Get the current stats for the secondary.
-                // The call will fail if your storage account does not have RA-GRS enabled.
-                // Change the retry policy for this call so that if it fails, it fails quickly.
-                BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
-                ServiceStats blobStats = await blobClientSecondary.GetServiceStatsAsync(requestOptions, null);
-
-                Console.WriteLine("Geo-replication status: {0}", blobStats.GeoReplication.Status);
-                Console.WriteLine("Last geo-replication sync time: {0}", blobStats.GeoReplication.LastSyncTime);
-                Console.WriteLine();
-            }
-            catch (StorageException e)
-            {
-                // In this case, we do not re-throw the exception, so that the sample will continue to run even if RA-GRS is not enabled
-                // for this storage account.
-                if (e.RequestInformation.HttpStatusCode == 403)
-                {
-                    Console.WriteLine("This storage account does not appear to support RA-GRS.");
-                    Console.WriteLine("More information: {0}", e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
             }
         }
 
@@ -2058,5 +2021,81 @@ namespace BlobStorage
         }
 
         #endregion
+
+        /// <summary>
+        /// Query the Cross-Origin Resource Sharing (CORS) rules for the Queue service
+        /// </summary>
+        /// <param name="blobClient"></param>
+        private static async Task CorsSample(CloudBlobClient blobClient)
+        {
+            // Get CORS rules
+            Console.WriteLine("Get CORS rules");
+
+            ServiceProperties serviceProperties = await blobClient.GetServicePropertiesAsync();
+
+            // Add CORS rule
+            Console.WriteLine("Add CORS rule");
+
+            CorsRule corsRule = new CorsRule
+            {
+                AllowedHeaders = new List<string> { "*" },
+                AllowedMethods = CorsHttpMethods.Get,
+                AllowedOrigins = new List<string> { "*" },
+                ExposedHeaders = new List<string> { "*" },
+                MaxAgeInSeconds = 3600
+            };
+
+            serviceProperties.Cors.CorsRules.Add(corsRule);
+            await blobClient.SetServicePropertiesAsync(serviceProperties);
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Get a list of valid page ranges for a page blob
+        /// </summary>
+        /// <param name="container"></param>
+        /// <returns>A Task object.</returns>
+        private static async Task PageRangesSample(CloudBlobContainer container)
+        {
+            BlobRequestOptions requestOptions = new BlobRequestOptions { RetryPolicy = new ExponentialRetry(TimeSpan.FromSeconds(1), 3) };
+            await container.CreateIfNotExistsAsync(requestOptions, null);
+
+            Console.WriteLine("Create Page Blob");
+            CloudPageBlob pageBlob = container.GetPageBlobReference("blob1");
+            pageBlob.Create(4 * 1024);
+
+            Console.WriteLine("Write Pages to Blob");
+            byte[] buffer = GetRandomBuffer(1024);
+            using (MemoryStream memoryStream = new MemoryStream(buffer))
+            {
+                pageBlob.WritePages(memoryStream, 512);
+            }
+
+            using (MemoryStream memoryStream = new MemoryStream(buffer))
+            {
+                pageBlob.WritePages(memoryStream, 3 * 1024);
+            }
+
+            Console.WriteLine("Get Page Ranges");
+            IEnumerable<PageRange> pageRanges = pageBlob.GetPageRanges();
+            foreach (PageRange pageRange in pageRanges)
+            {
+                Console.WriteLine(pageRange.ToString());
+            }
+
+            // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
+            // It is included for the purposes of the example. 
+            Console.WriteLine("Delete page blob");
+            await pageBlob.DeleteIfExistsAsync();
+            Console.WriteLine();
+        }
+
+        private static byte[] GetRandomBuffer(int size)
+        {
+            byte[] buffer = new byte[size];
+            Random random = new Random();
+            random.NextBytes(buffer);
+            return buffer;
+        }
     }
 }
