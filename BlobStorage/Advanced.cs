@@ -16,11 +16,6 @@
 
 namespace BlobStorage
 {
-    using Microsoft.Azure;
-    using Microsoft.Azure.Storage;
-    using Microsoft.Azure.Storage.Blob;
-    using Microsoft.Azure.Storage.RetryPolicies;
-    using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
     using System.Collections.Generic;
     using System.IO;
@@ -31,7 +26,6 @@ namespace BlobStorage
     using System.Threading.Tasks;
     using Microsoft.Azure;
     using Microsoft.Azure.Storage;
-    using Microsoft.Azure.Storage.Auth;
     using Microsoft.Azure.Storage.Blob;
     using Microsoft.Azure.Storage.RetryPolicies;
     using Microsoft.Azure.Storage.Shared.Protocol;
