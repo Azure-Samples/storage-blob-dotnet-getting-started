@@ -1,7 +1,11 @@
 ---
-services: storage
-platforms: dotnet
-author: tamram
+page_type: sample
+languages:
+- csharp
+products:
+- azure
+description: "Demonstrates how to use the Blob Storage service."
+urlFragment: storage-blob-dotnet-getting-started
 ---
 
 # Azure Blob Storage Samples for .NET
