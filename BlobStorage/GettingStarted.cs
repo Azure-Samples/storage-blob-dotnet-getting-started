@@ -258,7 +258,7 @@ namespace BlobStorage
             await pageBlob.CreateAsync(512 * 2 /*size*/); // size needs to be multiple of 512 bytes
 
             // Write to a page blob 
-            Console.WriteLine("2. Write to a Page Blob");
+            Console.WriteLine("3. Write to a Page Blob");
             byte[] samplePagedata = new byte[512];
             Random random = new Random();
             random.NextBytes(samplePagedata);
@@ -267,7 +267,7 @@ namespace BlobStorage
             // List all blobs in this container. Because a container can contain a large number of blobs the results 
             // are returned in segments with a maximum of 5000 blobs per segment. You can define a smaller maximum segment size
             // using the maxResults parameter on ListBlobsSegmentedAsync.
-            Console.WriteLine("3. List Blobs in Container");
+            Console.WriteLine("4. List Blobs in Container");
             BlobContinuationToken token = null;
             do
             {
@@ -282,7 +282,7 @@ namespace BlobStorage
             while (token != null);
 
             // Read from a page blob
-            Console.WriteLine("4. Read from a Page Blob");
+            Console.WriteLine("5. Read from a Page Blob");
             int bytesRead = await pageBlob.DownloadRangeToByteArrayAsync(samplePagedata, 0, 0, samplePagedata.Count());
 
             // Clean up after the demo 
