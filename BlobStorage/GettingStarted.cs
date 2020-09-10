@@ -16,14 +16,11 @@
 
 namespace BlobStorage
 {
+    using Azure.Storage.Blobs;
     using System;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-    using Microsoft.Azure.Storage;
-    using Microsoft.Azure.Storage.Auth;
-    using Microsoft.Azure.Storage.Blob;
-    using Microsoft.Azure.Storage.RetryPolicies;
 
     /// <summary>
     /// Getting started samples for Blob storage
@@ -66,14 +63,11 @@ namespace BlobStorage
             string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
-            CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
-
-            // Create a blob client for interacting with the blob service.
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+            BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
             try
             {
                 // The call below will fail if the sample is configured to use the storage emulator in the connection string, but 
@@ -82,7 +76,7 @@ namespace BlobStorage
                 BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
                 await container.CreateIfNotExistsAsync(requestOptions, null);
             }
-            catch (StorageException)
+            catch (Exception)
             {
                 Console.WriteLine("If you are running with the default connection string, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
                 Console.ReadLine();
@@ -92,12 +86,12 @@ namespace BlobStorage
             // To view the uploaded blob in a browser, you have two options. The first option is to use a Shared Access Signature (SAS) token to delegate 
             // access to the resource. See the documentation links at the top for more information on SAS. The second approach is to set permissions 
             // to allow public access to blobs in this container. Uncomment the line below to use this approach. Then you can view the image 
-            // using: https://[InsertYourStorageAccountNameHere].blob.core.windows.net/democontainer/HelloWorld.png
+            // using: https://[InsertYourblobServiceClientNameHere].blob.core.windows.net/democontainer/HelloWorld.png
             // await container.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
 
             // Upload a BlockBlob to the newly created container
             Console.WriteLine("2. Uploading BlockBlob");
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(ImageToUpload);
+            BlobClient blockBlob = container.GetBlockBlobReference(ImageToUpload);
 
             // Set the blob's content type so that the browser knows to treat it as an image.
             blockBlob.Properties.ContentType = "image/png";
@@ -109,7 +103,7 @@ namespace BlobStorage
             Console.WriteLine("3. List Blobs in Container");
             foreach (IListBlobItem blob in container.ListBlobs())
             {
-                // Blob type will be CloudBlockBlob, CloudPageBlob or CloudBlobDirectory
+                // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
                 // Use blob.GetType() and cast to appropriate type to gain access to properties specific to each type
                 Console.WriteLine("- {0} (type: {1})", blob.Uri, blob.GetType());
             }
@@ -120,7 +114,7 @@ namespace BlobStorage
 
             // Create a read-only snapshot of the blob
             Console.WriteLine("5. Create a read-only snapshot of the blob");
-            CloudBlockBlob blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
+            BlobClient blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
 
             // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
             // It is included for the purposes of the example. 
@@ -159,7 +153,7 @@ namespace BlobStorage
             Uri containerUri = GetContainerUri(containerName);
 
             // Get a reference to a container using the URI and the SAS token.
-            CloudBlobContainer container = new CloudBlobContainer(containerUri, accountSAS);
+            BlobContainerClient container = new BlobContainerClient(containerUri, accountSAS);
 
             try
             {
@@ -168,7 +162,7 @@ namespace BlobStorage
 
                 await container.CreateIfNotExistsAsync();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
                 Console.WriteLine("If you are running with the default configuration, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
@@ -181,12 +175,12 @@ namespace BlobStorage
                 // To view the uploaded blob in a browser, you have two options. The first option is to use a Shared Access Signature (SAS) token to delegate 
                 // access to the resource. See the documentation links at the top for more information on SAS. The second approach is to set permissions 
                 // to allow public access to blobs in this container. Uncomment the line below to use this approach. Then you can view the image 
-                // using: https://[InsertYourStorageAccountNameHere].blob.core.windows.net/democontainer/HelloWorld.png
+                // using: https://[InsertYourblobServiceClientNameHere].blob.core.windows.net/democontainer/HelloWorld.png
                 // await container.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
 
                 // Upload a BlockBlob to the newly created container
                 Console.WriteLine("2. Uploading BlockBlob");
-                CloudBlockBlob blockBlob = container.GetBlockBlobReference(ImageToUpload);
+                BlobClient blockBlob = container.GetBlockBlobReference(ImageToUpload);
                 await blockBlob.UploadFromFileAsync(ImageToUpload);
 
                 // List all the blobs in the container 
@@ -198,7 +192,7 @@ namespace BlobStorage
                     token = resultSegment.ContinuationToken;
                     foreach (IListBlobItem blob in resultSegment.Results)
                     {
-                        // Blob type will be CloudBlockBlob, CloudPageBlob or CloudBlobDirectory
+                        // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
                         Console.WriteLine("{0} (type: {1}", blob.Uri, blob.GetType());
                     }
                 }
@@ -210,7 +204,7 @@ namespace BlobStorage
 
                 // Create a read-only snapshot of the blob
                 Console.WriteLine("5. Create a read-only snapshot of the blob");
-                CloudBlockBlob blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
+                BlobClient blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
 
                 // Delete the blob and its snapshots.
                 Console.WriteLine("6. Delete block Blob and all of its snapshots");
@@ -242,14 +236,14 @@ namespace BlobStorage
             string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Retrieve storage account information from connection string
-            CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
+            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
             // Create a blob client for interacting with the blob service.
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+            BlobServiceClient blobServiceClient = blobServiceClient.CreateBlobServiceClient();
 
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+            BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
             await container.CreateIfNotExistsAsync();
 
             // Create a page blob in the newly created container.  
@@ -275,7 +269,7 @@ namespace BlobStorage
                 token = resultSegment.ContinuationToken;
                 foreach (IListBlobItem blob in resultSegment.Results)
                 {
-                    // Blob type will be CloudBlockBlob, CloudPageBlob or CloudBlobDirectory
+                    // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
                     Console.WriteLine("{0} (type: {1}", blob.Uri, blob.GetType());
                 }
             }
@@ -301,9 +295,9 @@ namespace BlobStorage
         private static Uri GetContainerUri(string containerName)
         {
             // Retrieve storage account information from connection string
-            CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
+            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
-            return storageAccount.CreateCloudBlobClient().GetContainerReference(containerName).Uri;
+            return blobServiceClient.CreateBlobServiceClient().GetBlobContainerClient(containerName).Uri;
         }
 
         /// <summary>
@@ -313,7 +307,7 @@ namespace BlobStorage
         private static string GetAccountSASToken()
         {
             // Retrieve storage account information from connection string
-            CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString();
+            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
             // Create a new access policy for the account with the following properties:
             // Permissions: Read, Write, List, Create, Delete
@@ -332,7 +326,7 @@ namespace BlobStorage
             };
 
             // Create new storage credentials using the SAS token.
-            string sasToken = storageAccount.GetSharedAccessSignature(policy);
+            string sasToken = blobServiceClient.GetSharedAccessSignature(policy);
 
             // Return the SASToken
             return sasToken;

@@ -17,18 +17,23 @@
 namespace BlobStorage
 {
     using System;
+    using System.Collections;
     using System.Collections.Generic;
+    using System.ComponentModel;
     using System.IO;
     using System.Linq;
+    using System.Net;
     using System.Security.Cryptography;
     using System.ServiceModel.Channels;
     using System.Text;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Blobs.Specialized;
+    using Azure.Storage.Sas;
     using Microsoft.Azure;
-    using Microsoft.Azure.Storage;
-    using Microsoft.Azure.Storage.Blob;
-    using Microsoft.Azure.Storage.RetryPolicies;
-    using Microsoft.Azure.Storage.Shared.Protocol;
 
     /// <summary>
     /// Advanced samples for Blob storage, including samples demonstrating a variety of client library classes and methods.
@@ -41,43 +46,40 @@ namespace BlobStorage
         // Prefix for blob created by the sample.
         private const string BlobPrefix = "sample-blob-";
 
+        private static BlobServiceClient blobServiceClient;
+
         /// <summary>
         /// Calls the advanced samples for Blob storage.
         /// </summary>
         /// <returns>A Task object.</returns>
         public static async Task CallBlobAdvancedSamples()
         {
-            CloudStorageAccount storageAccount;
-
             try
             {
-                storageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+                blobServiceClient = new BlobServiceClient(CloudConfigurationManager.GetSetting("StorageConnectionString"));
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
                 throw;
             }
 
-            // Create service client for credentialed access to the Blob service.
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-
-            CloudBlobContainer container = null;
-            ServiceProperties userServiceProperties = null;
+            BlobContainerClient container = null;
+            BlobServiceProperties userServiceProperties = null;
 
             try
             {
                 // Save the user's current service property/storage analytics settings.
                 // This ensures that the sample does not permanently overwrite the user's analytics settings.
                 // Note however that logging and metrics settings will be modified for the duration of the sample.
-                userServiceProperties = await blobClient.GetServicePropertiesAsync();
+                userServiceProperties = await blobServiceClient.GetPropertiesAsync();
 
                 // Get a reference to a sample container.
-                container = await CreateSampleContainerAsync(blobClient);
+                container = await CreateSampleContainerAsync(blobServiceClient);
 
                 // Call Blob service client samples. 
-                await CallBlobClientSamples(blobClient);
+                await CallblobServiceClientSamples(blobServiceClient);
 
                 // Call blob container samples using the sample container just created.
                 await CallContainerSamples(container);
@@ -89,12 +91,12 @@ namespace BlobStorage
                 await CallSasSamples(container);
 
                 // CORS Rules
-                await CorsSample(blobClient);
+                await CorsSample(blobServiceClient);
 
                 // Page Blob Ranges
                 await PageRangesSample(container);
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -111,47 +113,40 @@ namespace BlobStorage
                 // The sample code deletes any containers it created if it runs completely. However, if you need to delete containers 
                 // created by previous sessions (for example, if you interrupted the running code before it completed), 
                 // you can uncomment and run the following line to delete them.
-                //await DeleteContainersWithPrefix(blobClient, ContainerPrefix);
+                //await DeleteContainersWithPrefix(blobServiceClient, ContainerPrefix);
 
                 // Return the service properties/storage analytics settings to their original values.
-                await blobClient.SetServicePropertiesAsync(userServiceProperties);
+                await blobServiceClient.SetPropertiesAsync(userServiceProperties);
             }
         }
         
         /// <summary>
-        /// Calls samples that demonstrate how to use the Blob service client (CloudBlobClient) object.
+        /// Calls samples that demonstrate how to use the Blob service client (BlobServiceClient) object.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
+        /// <param name="blobServiceClient">The Blob service client.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CallBlobClientSamples(CloudBlobClient blobClient)
-        {
-            // Create a buffer manager for the Blob service client. The buffer manager enables the Blob service client to
-            // re-use an existing buffer across multiple operations.
-            blobClient.BufferManager = new WCFBufferManagerAdapter(
-                BufferManager.CreateBufferManager(32 * 1024, 256 * 1024), 256 * 1024);
-
+        private static async Task CallblobServiceClientSamples(BlobServiceClient blobServiceClient)
+        {          
             // Print out properties for the service client.
-            PrintServiceClientProperties(blobClient);
+            PrintServiceClientProperties(blobServiceClient);
 
             // Configure storage analytics (metrics and logging) on Blob storage.
-            await ConfigureBlobAnalyticsAsync(blobClient);
+            await ConfigureBlobAnalyticsAsync(blobServiceClient);
 
             // List all containers in the storage account.
-            ListAllContainers(blobClient, "sample-");
+            ListAllContainers(blobServiceClient, "sample-");
 
             // List containers beginning with the specified prefix.
-            await ListContainersWithPrefixAsync(blobClient, "sample-");
+            await ListContainersWithPrefixAsync(blobServiceClient, "sample-");
         }
 
         /// <summary>
         /// Calls samples that demonstrate how to work with a blob container.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CallContainerSamples(CloudBlobContainer container)
+        private static async Task CallContainerSamples(BlobContainerClient container)
         {
-            // Fetch container attributes in order to populate the container's properties and metadata.
-            await container.FetchAttributesAsync();
 
             // Read container metadata and properties.
             PrintContainerPropertiesAndMetadata(container);
@@ -159,41 +154,39 @@ namespace BlobStorage
             // Add container metadata.
             await AddContainerMetadataAsync(container);
 
-            // Fetch the container's attributes again, and read container metadata to see the new additions.
-            await container.FetchAttributesAsync();
+            // read container metadata to see the new additions.
             PrintContainerPropertiesAndMetadata(container);
 
             // Make the container available for public access.
             // With Container-level permissions, container and blob data can be read via anonymous request. 
             // Clients can enumerate blobs within the container via anonymous request, but cannot enumerate containers.
-            await SetAnonymousAccessLevelAsync(container, BlobContainerPublicAccessType.Container);
+            await SetAnonymousAccessLevelAsync(container, PublicAccessType.BlobContainer);
 
             // Try an anonymous operation to read container properties and metadata.
             Uri containerUri = container.Uri;
 
             // Note that we obtain the container reference using only the URI. No account credentials are used.
-            CloudBlobContainer publicContainer = new CloudBlobContainer(containerUri);
+            BlobContainerClient publicContainer = new BlobContainerClient(containerUri);
             Console.WriteLine("Read container metadata anonymously");
-            await container.FetchAttributesAsync();
             PrintContainerPropertiesAndMetadata(container);
 
             // Make the container private again.
-            await SetAnonymousAccessLevelAsync(container, BlobContainerPublicAccessType.Off);
+            await SetAnonymousAccessLevelAsync(container, PublicAccessType.None);
 
             // Test container lease conditions.
             // This code creates and deletes additional containers.
-            await ManageContainerLeasesAsync(container.ServiceClient);
+            await ManageContainerLeasesAsync(blobServiceClient);
         }
 
         /// <summary>
         /// Calls samples that demonstrate how to work with blobs.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CallBlobSamples(CloudBlobContainer container)
+        private static async Task CallBlobSamples(BlobContainerClient container)
         {
             // Create a blob with a random name.
-            CloudBlockBlob blob = await CreateRandomlyNamedBlockBlobAsync(container);
+            BlobClient blob = await CreateRandomlyNamedBlockBlobAsync(container);
 
             // Get a reference to the blob created above from the server.
             // This call will fail if the blob does not yet exist.
@@ -211,11 +204,6 @@ namespace BlobStorage
             // List blobs with a hierarchical listing.
             await ListBlobsHierarchicalListingAsync(container, null);
 
-            // List blobs whose names begin with "s" hierarchically, passing the container name as part of the prefix.
-            ListBlobsFromServiceClient(container.ServiceClient, string.Format("{0}/s", container.Name));
-
-            // List blobs whose names begin with "0" hierarchically, passing the container name as part of the prefix.
-            await ListBlobsFromServiceClientAsync(container.ServiceClient, string.Format("{0}/0", container.Name));
 
             // Create a snapshot of a block blob.
             await CreateBlockBlobSnapshotAsync(container);
@@ -238,9 +226,9 @@ namespace BlobStorage
         /// <summary>
         /// Calls shared access signature samples for both containers and blobs.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CallSasSamples(CloudBlobContainer container)
+        private static async Task CallSasSamples(BlobContainerClient container)
         {
             const string BlobName1 = "sasBlob1.txt";
             const string BlobContent1 = "Blob created with an ad-hoc SAS granting write permissions on the container.";
@@ -256,29 +244,26 @@ namespace BlobStorage
 
             string sharedAccessPolicyName = "sample-policy-" + DateTime.Now.Ticks.ToString();
 
+            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("AzureStorageEmulatorAccountKey"));
+            
             // Create the container if it does not already exist.
             await container.CreateIfNotExistsAsync();
 
-            // Create a new shared access policy on the container.
-            // The access policy may be optionally used to provide constraints for
-            // shared access signatures on the container and the blob.
-            await CreateSharedAccessPolicyAsync(container, sharedAccessPolicyName);
-
-            // Generate an ad-hoc SAS URI for the container with write and list permissions.
-            string adHocContainerSAS = GetContainerSasUri(container);
+            // Generate an  SAS URI for the container with write and list permissions.
+            Uri ContainerSAS = GetContainerSasUri(container, storageSharedKeyCredential);
 
             // Test the SAS. The write and list operations should succeed, and 
             // the read and delete operations should fail with error code 403 (Forbidden).
-            await TestContainerSASAsync(adHocContainerSAS, BlobName1, BlobContent1);
+            await TestContainerSASAsync(ContainerSAS, BlobName1, BlobContent1);
 
             // Generate a SAS URI for the container, using the stored access policy to set constraints on the SAS.
-            string sharedPolicyContainerSAS = GetContainerSasUri(container, sharedAccessPolicyName);
+            Uri sharedPolicyContainerSAS = GetContainerSasUri(container, storageSharedKeyCredential, sharedAccessPolicyName);
 
             // Test the SAS. The write, read, list, and delete operations should all succeed.
             await TestContainerSASAsync(sharedPolicyContainerSAS, BlobName2, BlobContent2);
 
             // Generate an ad-hoc SAS URI for a blob within the container. The ad-hoc SAS has create, write, and read permissions.
-            string adHocBlobSAS = GetBlobSasUri(container, BlobName3, null);
+            string adHocBlobSAS = GetBlobSasUri(container, BlobName3);
             
             // Test the SAS. The create, write, and read operations should succeed, and 
             // the delete operation should fail with error code 403 (Forbidden).
@@ -291,7 +276,7 @@ namespace BlobStorage
             await TestBlobSASAsync(sharedPolicyBlobSAS, BlobContent4);
         }
 
-        #region BlobClientSamples
+        #region blobServiceClientSamples
 
         /// <summary>
         /// Configures logging and metrics for Blob storage, as well as the default service version.
@@ -299,37 +284,39 @@ namespace BlobStorage
         /// will change those settings. For that reason, it's best to run with a test storage account if possible.
         /// The sample saves your settings and resets them after it has completed running.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
+        /// <param name="blobServiceClient">The Blob service client.</param>
         /// <returns>A Task object.</returns>
-        private static async Task ConfigureBlobAnalyticsAsync(CloudBlobClient blobClient)
+        private static async Task ConfigureBlobAnalyticsAsync(BlobServiceClient blobServiceClient)
         {
             try
             {
                 // Get current service property settings.
-                ServiceProperties serviceProperties = await blobClient.GetServicePropertiesAsync();
+                BlobServiceProperties serviceProperties = await blobServiceClient.GetPropertiesAsync();
 
                 // Enable analytics logging and set retention policy to 14 days. 
-                serviceProperties.Logging.LoggingOperations = LoggingOperations.All;
-                serviceProperties.Logging.RetentionDays = 14;
+                serviceProperties.Logging.Read = true;
+                serviceProperties.Logging.Delete = true;
+                serviceProperties.Logging.Write = true;
+                serviceProperties.Logging.RetentionPolicy.Days = 14;
                 serviceProperties.Logging.Version = "1.0";
 
                 // Configure service properties for hourly and minute metrics. 
                 // Set retention policy to 7 days.
-                serviceProperties.HourMetrics.MetricsLevel = MetricsLevel.ServiceAndApi;
-                serviceProperties.HourMetrics.RetentionDays = 7;
+                serviceProperties.HourMetrics.IncludeApis = true;
+                serviceProperties.HourMetrics.RetentionPolicy.Days = 7;
                 serviceProperties.HourMetrics.Version = "1.0";
 
-                serviceProperties.MinuteMetrics.MetricsLevel = MetricsLevel.ServiceAndApi;
-                serviceProperties.MinuteMetrics.RetentionDays = 7;
+                serviceProperties.MinuteMetrics.IncludeApis = true;
+                serviceProperties.MinuteMetrics.RetentionPolicy.Days = 7;
                 serviceProperties.MinuteMetrics.Version = "1.0";
 
                 // Set the default service version to be used for anonymous requests.
                 serviceProperties.DefaultServiceVersion = "2018-11-09";
 
                 // Set the service properties.
-                await blobClient.SetServicePropertiesAsync(serviceProperties);            
+                await blobServiceClient.SetPropertiesAsync(serviceProperties);            
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -342,9 +329,9 @@ namespace BlobStorage
         /// Note that the ListContainers method is called synchronously, for the purposes of the sample. However, in a real-world
         /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
+        /// <param name="blobServiceClient">The Blob service client.</param>
         /// <param name="prefix">The container prefix.</param>
-        private static void ListAllContainers(CloudBlobClient blobClient, string prefix)
+        private static void ListAllContainers(BlobServiceClient blobServiceClient, string prefix)
         {
             // List all containers in this storage account.
             Console.WriteLine("List all containers in account:");
@@ -352,14 +339,14 @@ namespace BlobStorage
             try
             {
                 // List containers beginning with the specified prefix, and without returning container metadata.
-                foreach (var container in blobClient.ListContainers(prefix, ContainerListingDetails.None, null, null))
+                foreach (var container in blobServiceClient.GetBlobContainers(BlobContainerTraits.None, prefix: prefix))
                 {
                     Console.WriteLine("\tContainer:" + container.Name);
                 }
 
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -371,118 +358,38 @@ namespace BlobStorage
         /// Lists containers in the storage account whose names begin with the specified prefix, and return container metadata
         /// as part of the listing operation.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
+        /// <param name="blobServiceClient">The Blob service client.</param>
         /// <param name="prefix">The container name prefix.</param>
         /// <returns>A Task object.</returns>
-        private static async Task ListContainersWithPrefixAsync(CloudBlobClient blobClient, string prefix)
+        private static async Task ListContainersWithPrefixAsync(BlobServiceClient blobServiceClient, string prefix)
         {
             Console.WriteLine("List all containers beginning with prefix {0}, plus container metadata:", prefix);
 
-            BlobContinuationToken continuationToken = null;
-            ContainerResultSegment resultSegment = null;
+            Pageable<BlobContainerItem> Pageable = null;
 
             try
             {
-                do
-                {
                     // List containers beginning with the specified prefix, returning segments of 5 results each. 
                     // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
                     // Requesting the container's metadata as part of the listing operation populates the metadata, 
                     // so it's not necessary to call FetchAttributes() to read the metadata.
-                    resultSegment = await blobClient.ListContainersSegmentedAsync(
-                        prefix, ContainerListingDetails.Metadata, 5, continuationToken, null, null);
-
+                    Pageable = blobServiceClient.GetBlobContainers(BlobContainerTraits.Metadata, prefix: prefix);
+                    
                     // Enumerate the containers returned.
-                    foreach (var container in resultSegment.Results)
+                    foreach (var container in Pageable)
                     {
                         Console.WriteLine("\tContainer:" + container.Name);
 
                         // Write the container's metadata keys and values.
-                        foreach (var metadataItem in container.Metadata)
+                        foreach (var metadataItem in container.Properties.Metadata)
                         {
                             Console.WriteLine("\t\tMetadata key: " + metadataItem.Key);
                             Console.WriteLine("\t\tMetadata value: " + metadataItem.Value);
                         }
                     }
-
-                    // Get the continuation token.
-                    continuationToken = resultSegment.ContinuationToken;
-
-                } while (continuationToken != null);
-
                 Console.WriteLine();
             }
-            catch (StorageException e)
-            {
-                Console.WriteLine(e.Message);
-                Console.ReadLine();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Lists blobs beginning with the specified prefix, which must include the container name.
-        /// Note that the ListBlobs method is called synchronously, for the purposes of the sample. However, in a real-world
-        /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
-        /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        /// <param name="prefix">The prefix.</param>
-        private static void ListBlobsFromServiceClient(CloudBlobClient blobClient, string prefix)
-        {
-            Console.WriteLine("List blobs by prefix. Prefix must include container name:");
-
-            try
-            {
-                // The prefix is required when listing blobs from the service client. The prefix must include
-                // the container name.
-                foreach (var blob in  blobClient.ListBlobs(prefix, true, BlobListingDetails.None, null, null))
-                {
-                    Console.WriteLine("\tBlob:" + blob.Uri);
-                }
-
-                Console.WriteLine();
-            }
-            catch (StorageException e)
-            {
-                Console.WriteLine(e.Message);
-                Console.ReadLine();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Lists blobs beginning with the specified prefix, which must include the container name.
-        /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        /// <param name="prefix">The prefix.</param>
-        private static async Task ListBlobsFromServiceClientAsync(CloudBlobClient blobClient, string prefix)
-        {
-            Console.WriteLine("List blobs by prefix. Prefix must include container name:");
-
-            BlobContinuationToken continuationToken = null;
-            BlobResultSegment resultSegment = null; 
-
-            try
-            {
-                do
-                {
-                    // The prefix is required when listing blobs from the service client. The prefix must include
-                    // the container name.
-                    resultSegment = await blobClient.ListBlobsSegmentedAsync(prefix, continuationToken);
-                    foreach (var blob in resultSegment.Results)
-                    {
-                        Console.WriteLine("\tBlob:" + blob.Uri);
-                    }
-
-                    Console.WriteLine();
-
-                    // Get the continuation token.
-                    continuationToken = resultSegment.ContinuationToken;
-
-                } while (continuationToken != null);
-
-            }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -493,17 +400,13 @@ namespace BlobStorage
         /// <summary>
         /// Prints properties for the Blob service client to the console window.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        private static void PrintServiceClientProperties(CloudBlobClient blobClient)
+        /// <param name="blobServiceClient">The Blob service client.</param>
+        private static void PrintServiceClientProperties(BlobServiceClient blobServiceClient)
         {
             Console.WriteLine("-----Blob Service Client Properties-----");
-            Console.WriteLine("Storage account name: {0}", blobClient.Credentials.AccountName);
-            Console.WriteLine("Authentication Scheme: {0}", blobClient.AuthenticationScheme);
-            Console.WriteLine("Base URI: {0}", blobClient.BaseUri);
-            Console.WriteLine("Primary URI: {0}", blobClient.StorageUri.PrimaryUri);
-            Console.WriteLine("Secondary URI: {0}", blobClient.StorageUri.SecondaryUri);
-            Console.WriteLine("Default buffer size: {0}", blobClient.BufferManager.GetDefaultBufferSize());
-            Console.WriteLine("Default delimiter: {0}", blobClient.DefaultDelimiter);
+            Console.WriteLine("Storage account name: {0}", blobServiceClient.AccountName);
+            Console.WriteLine("Authentication Scheme: {0}", blobServiceClient.Uri.Scheme);
+            Console.WriteLine("Base URI: {0}", blobServiceClient.Uri);
             Console.WriteLine();
         }
 
@@ -514,22 +417,22 @@ namespace BlobStorage
         /// <summary>
         /// Creates a sample container for use in the sample application.
         /// </summary>
-        /// <param name="blobClient">The blob service client.</param>
-        /// <returns>A CloudBlobContainer object.</returns>
-        private static async Task<CloudBlobContainer> CreateSampleContainerAsync(CloudBlobClient blobClient)
+        /// <param name="blobServiceClient">The blob service client.</param>
+        /// <returns>A BlobContainerClient object.</returns>
+        private static async Task<BlobContainerClient> CreateSampleContainerAsync(BlobServiceClient blobServiceClient)
         {
             // Name the sample container based on new GUID, to ensure uniqueness.
             string containerName = ContainerPrefix + Guid.NewGuid();
 
             // Get a reference to a sample container.
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+            BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
 
             try
             {
                 // Create the container if it does not already exist.
                 await container.CreateIfNotExistsAsync();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 // Ensure that the storage emulator is running if using emulator connection string.
                 Console.WriteLine(e.Message);
@@ -544,20 +447,21 @@ namespace BlobStorage
         /// <summary>
         /// Add some sample metadata to the container.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task AddContainerMetadataAsync(CloudBlobContainer container)
+        private static async Task AddContainerMetadataAsync(BlobContainerClient container)
         {
             try
             {
                 // Add some metadata to the container.
-                container.Metadata.Add("docType", "textDocuments");
-                container.Metadata["category"] = "guidance";
+                IDictionary<string, string> metadata = new Dictionary<string, string>();
+                metadata.Add("docType", "textDocuments");
+                metadata["category"] = "guidance";
 
                 // Set the container's metadata asynchronously.
-                await container.SetMetadataAsync();
+                await container.SetMetadataAsync(metadata);
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -571,22 +475,17 @@ namespace BlobStorage
         /// <param name="container">The container.</param>
         /// <param name="accessType">Type of the access.</param>
         /// <returns>A Task object.</returns>
-        private static async Task SetAnonymousAccessLevelAsync(CloudBlobContainer container, BlobContainerPublicAccessType accessType)
+        private static async Task SetAnonymousAccessLevelAsync(BlobContainerClient container, PublicAccessType accessType)
         {
             try
             {
-                // Read the existing permissions first so that we have all container permissions. 
-                // This ensures that we do not inadvertently remove any shared access policies while setting the public access level.
-                BlobContainerPermissions permissions = await container.GetPermissionsAsync();
-
-                // Set the container's public access level.
-                permissions.PublicAccess = BlobContainerPublicAccessType.Container;
-                await container.SetPermissionsAsync(permissions);
+                // Set the container's public access level.       
+                await container.SetAccessPolicyAsync(PublicAccessType.BlobContainer);
 
                 Console.WriteLine("Container public access set to {0}", accessType.ToString());
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -597,19 +496,19 @@ namespace BlobStorage
         /// <summary>
         /// Reads the container's properties.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
-        private static void PrintContainerPropertiesAndMetadata(CloudBlobContainer container)
+        /// <param name="container">A BlobContainerClient object.</param>
+        private static void PrintContainerPropertiesAndMetadata(BlobContainerClient container)
         {
             Console.WriteLine("-----Container Properties-----");
             Console.WriteLine("Name: {0}", container.Name);
             Console.WriteLine("URI: {0}", container.Uri);
-            Console.WriteLine("ETag: {0}", container.Properties.ETag);
-            Console.WriteLine("Last modified: {0}", container.Properties.LastModified);
+            Console.WriteLine("ETag: {0}", container.GetProperties().Value.ETag);
+            Console.WriteLine("Last modified: {0}", container.GetProperties().Value.LastModified);
             PrintContainerLeaseProperties(container);
 
             // Enumerate the container's metadata.
             Console.WriteLine("Container metadata:");
-            foreach (var metadataItem in container.Metadata)
+            foreach (var metadataItem in container.GetProperties().Value.Metadata)
             {
                 Console.WriteLine("\tKey: {0}", metadataItem.Key);
                 Console.WriteLine("\tValue: {0}", metadataItem.Value);
@@ -619,186 +518,21 @@ namespace BlobStorage
         }
 
         /// <summary>
-        /// Demonstrates container lease states: available, breaking, broken, and expired.
-        /// A lease is used in each example to delete the container.
-        /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
-        /// <returns>A Task object.</returns>
-        private static async Task ManageContainerLeasesAsync(CloudBlobClient blobClient)
-        {
-            CloudBlobContainer container1 = null;
-            CloudBlobContainer container2 = null;
-            CloudBlobContainer container3 = null;
-            CloudBlobContainer container4 = null;
-            CloudBlobContainer container5 = null;
-
-            // Lease duration is 15 seconds.
-            TimeSpan leaseDuration = new TimeSpan(0, 0, 15);
-
-            const string LeasingPrefix = "leasing-";
-
-            try
-            {
-                string leaseId = null;
-                AccessCondition condition = null;
-
-                /* 
-                    Case 1: Lease is available
-                */
-
-                // Lease is available on the new container. Acquire the lease and delete the leased container.
-                container1 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
-                await container1.CreateIfNotExistsAsync();
-
-                // Get container properties to see the available lease.
-                await container1.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container1);
-
-                // Acquire the lease.
-                leaseId = await container1.AcquireLeaseAsync(leaseDuration, leaseId);
-
-                // Get container properties again to see that the container is leased.
-                await container1.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container1);
-
-                // Create an access condition using the lease ID, and use it to delete the leased container..
-                condition = new AccessCondition() { LeaseId = leaseId };
-                await container1.DeleteAsync(condition, null, null);
-                Console.WriteLine("Deleted container {0}", container1.Name);
-
-                /* 
-                    Case 2: Lease is breaking
-                */
-
-                container2 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
-                await container2.CreateIfNotExistsAsync();
-
-                // Acquire the lease.
-                leaseId = await container2.AcquireLeaseAsync(leaseDuration, null);
-                
-                // Break the lease. Passing null indicates that the break interval will be the remainder of the current lease.
-                await container2.BreakLeaseAsync(null);
-
-                // Get container properties to see the breaking lease.
-                // The lease break interval has not yet elapsed.
-                await container2.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container2);
-
-                // Delete the container. If the lease is breaking, the container can be deleted by
-                // passing the lease ID. 
-                condition = new AccessCondition() { LeaseId = leaseId };
-                await container2.DeleteAsync(condition, null, null);
-                Console.WriteLine("Deleted container {0}", container2.Name);
-
-                /* 
-                    Case 3: Lease is broken
-                */
-
-                container3 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
-                await container3.CreateIfNotExistsAsync();
-
-                // Acquire the lease.
-                leaseId = await container3.AcquireLeaseAsync(leaseDuration, null);
-                
-                // Break the lease. Passing 0 breaks the lease immediately.
-                TimeSpan breakInterval = await container3.BreakLeaseAsync(new TimeSpan(0));
-
-                // Get container properties to see that the lease is broken.
-                await container3.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container3);
-
-                // Once the lease is broken, delete the container without the lease ID.
-                await container3.DeleteAsync();
-                Console.WriteLine("Deleted container {0}", container3.Name);
-
-                /* 
-                    Case 4: Lease has expired.
-                */
-
-                container4 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
-                await container4.CreateIfNotExistsAsync();
-                
-                // Acquire the lease.
-                leaseId = await container4.AcquireLeaseAsync(leaseDuration, null);
-                
-                // Sleep for 16 seconds to allow lease to expire.
-                Console.WriteLine("Waiting 16 seconds for lease break interval to expire....");
-                System.Threading.Thread.Sleep(new TimeSpan(0, 0, 16));
-
-                // Get container properties to see that the lease has expired.
-                await container4.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container4);
-
-                // Delete the container without the lease ID.
-                await container4.DeleteAsync();
-
-                /* 
-                    Case 5: Attempt to delete leased container without lease ID.
-                */
-
-                container5 = blobClient.GetContainerReference(LeasingPrefix + Guid.NewGuid());
-                await container5.CreateIfNotExistsAsync();
-                
-                // Acquire the lease.
-                await container5.AcquireLeaseAsync(leaseDuration, null);
-
-                // Get container properties to see that the container has been leased.
-                await container5.FetchAttributesAsync();
-                PrintContainerLeaseProperties(container5);
-
-                // Attempt to delete the leased container without the lease ID.
-                // This operation will result in an error.
-                // Note that in a real-world scenario, it would most likely be another client attempting to delete the container.
-                await container5.DeleteAsync();
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 412)
-                {
-                    // Handle the error demonstrated for case 5 above and continue execution.
-                    Console.WriteLine("The container is leased and cannot be deleted without specifying the lease ID.");
-                    Console.WriteLine("More information: {0}", e.Message);
-                }
-                else
-                {
-                    // Output error information for any other errors, but continue execution.
-                    Console.WriteLine(e.Message);
-                }
-            }
-            finally
-            {
-                // Enumerate containers based on the prefix used to name them, and delete any remaining containers.
-                foreach (var container in blobClient.ListContainers(LeasingPrefix))
-                {
-                    await container.FetchAttributesAsync();
-                    if (container.Properties.LeaseState == LeaseState.Leased || container.Properties.LeaseState == LeaseState.Breaking)
-                    {
-                        await container.BreakLeaseAsync(new TimeSpan(0));
-                    }
-
-                    Console.WriteLine();
-                    Console.WriteLine("Deleting container: {0}", container.Name);
-                    await container.DeleteAsync();
-                }
-            }
-        }
-
-        /// <summary>
         /// Reads the lease properties for the container.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
-        private static void PrintContainerLeaseProperties(CloudBlobContainer container)
+        /// <param name="container">A BlobContainerClient object.</param>
+        private static void PrintContainerLeaseProperties(BlobContainerClient container)
         {
             try
             {
                 Console.WriteLine();
                 Console.WriteLine("Leasing properties for container: {0}", container.Name);
-                Console.WriteLine("\t Lease state: {0}", container.Properties.LeaseState);
-                Console.WriteLine("\t Lease duration: {0}", container.Properties.LeaseDuration);
-                Console.WriteLine("\t Lease status: {0}", container.Properties.LeaseStatus);
+                Console.WriteLine("\t Lease state: {0}", container.GetProperties().Value.LeaseState);
+                Console.WriteLine("\t Lease duration: {0}", container.GetProperties().Value.LeaseDuration);
+                Console.WriteLine("\t Lease status: {0}", container.GetProperties().Value.LeaseStatus);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -811,28 +545,23 @@ namespace BlobStorage
         /// Note that the ListContainers method is called synchronously, for the purposes of the sample. However, in a real-world
         /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
         /// </summary>
-        /// <param name="blobClient">The Blob service client.</param>
+        /// <param name="blobServiceClient">The Blob service client.</param>
         /// <param name="prefix">The container name prefix.</param>
         /// <returns>A Task object.</returns>
-        private static async Task DeleteContainersWithPrefixAsync(CloudBlobClient blobClient, string prefix)
+        private static async Task DeleteContainersWithPrefixAsync(BlobServiceClient blobServiceClient, string prefix)
         {
             Console.WriteLine("Delete all containers beginning with the specified prefix");
             try
             {
-                foreach (var container in blobClient.ListContainers(prefix))
+                foreach (var container in blobServiceClient.GetBlobContainers(BlobContainerTraits.None, prefix: prefix))
                 {
                     Console.WriteLine("\tContainer:" + container.Name);
-                    if (container.Properties.LeaseState == LeaseState.Leased)
-                    {
-                        await container.BreakLeaseAsync(null);
-                    }
-
-                    await container.DeleteAsync();
+                    await blobServiceClient.DeleteBlobContainerAsync(container.Name);
                 }
 
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -840,31 +569,30 @@ namespace BlobStorage
             }
         }
 
+
         /// <summary>
-        /// Creates a shared access policy on the container.
+        /// Returns a URI containing a SAS for the blob container.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
-        /// <param name="policyName">The name of the stored access policy.</param>
-        /// <returns>A Task object.</returns>
-        private static async Task CreateSharedAccessPolicyAsync(CloudBlobContainer container, string policyName)
+        /// <param name="container">A reference to the container.</param>
+        /// <param name="storedPolicyName">A string containing the name of the stored access policy. If null, an ad-hoc SAS is created.</param>
+        /// <returns>A string containing the URI for the container, with the SAS token appended.</returns>
+        private static Uri GetContainerSasUri(BlobContainerClient container, StorageSharedKeyCredential storageSharedKeyCredential)
         {
-            // Create a new shared access policy and define its constraints.
-            // The access policy provides create, write, read, list, and delete permissions.
-            SharedAccessBlobPolicy sharedPolicy = new SharedAccessBlobPolicy()
+            var policy = new BlobSasBuilder
             {
-                // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
-                // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
-                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
-                Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.List |
-                    SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.Create | SharedAccessBlobPermissions.Delete
+                Protocol = SasProtocol.HttpsAndHttp,
+                BlobContainerName = container.Name,
+                Resource = "c",
+                StartsOn = DateTimeOffset.UtcNow,
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
+                IPRange = new SasIPRange(IPAddress.None, IPAddress.None)
             };
-
-            // Get the container's existing permissions.
-            BlobContainerPermissions permissions = await container.GetPermissionsAsync();
-
-            // Add the new policy to the container's permissions, and set the container's permissions.
-            permissions.SharedAccessPolicies.Add(policyName, sharedPolicy);
-            await container.SetPermissionsAsync(permissions);
+            policy.SetPermissions(BlobSasPermissions.All);
+            var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
+            UriBuilder sasUri = new UriBuilder(container.Uri);
+            sasUri.Query = sas;
+            //Return the URI string for the container, including the SAS token.
+            return sasUri.Uri;
         }
 
         /// <summary>
@@ -873,44 +601,19 @@ namespace BlobStorage
         /// <param name="container">A reference to the container.</param>
         /// <param name="storedPolicyName">A string containing the name of the stored access policy. If null, an ad-hoc SAS is created.</param>
         /// <returns>A string containing the URI for the container, with the SAS token appended.</returns>
-        private static string GetContainerSasUri(CloudBlobContainer container, string storedPolicyName = null)
+        private static Uri GetContainerSasUri(BlobContainerClient container, StorageSharedKeyCredential storageSharedKeyCredential, string storedPolicyName)
         {
-            string sasContainerToken;
-
-            // If no stored policy is specified, create a new access policy and define its constraints.
-            if (storedPolicyName == null)
-            {
-                // Note that the SharedAccessBlobPolicy class is used both to define the parameters of an ad-hoc SAS, and 
-                // to construct a shared access policy that is saved to the container's shared access policies. 
-                SharedAccessBlobPolicy adHocPolicy = new SharedAccessBlobPolicy()
-                {
-                    // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
-                    // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
-                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
-                    Permissions = SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.List
-                };
-
-                // Generate the shared access signature on the container, setting the constraints directly on the signature.
-                sasContainerToken = container.GetSharedAccessSignature(adHocPolicy, null);
-
-                Console.WriteLine("SAS for blob container (ad hoc): {0}", sasContainerToken);
-                Console.WriteLine();
-            }
-            else
-            {
-                // Generate the shared access signature on the container. In this case, all of the constraints for the
-                // shared access signature are specified on the stored access policy, which is provided by name.
-                // It is also possible to specify some constraints on an ad-hoc SAS and others on the stored access policy.
-                sasContainerToken = container.GetSharedAccessSignature(null, storedPolicyName);
-
-                Console.WriteLine("SAS for blob container (stored access policy): {0}", sasContainerToken);
-                Console.WriteLine();
-            }
-
-            // Return the URI string for the container, including the SAS token.
-            return container.Uri + sasContainerToken;
+            var policy = new BlobSasBuilder
+            {              
+                BlobContainerName = container.Name,
+                Identifier = storedPolicyName
+            };
+            var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
+            UriBuilder sasUri = new UriBuilder(container.Uri);
+            sasUri.Query = sas;
+            //Return the URI string for the container, including the SAS token.
+            return sasUri.Uri;
         }
-
         /// <summary>
         /// Tests a container SAS to determine which operations it allows.
         /// </summary>
@@ -918,17 +621,17 @@ namespace BlobStorage
         /// <param name="blobName">A string containing the name of the blob.</param>
         /// <param name="blobContent">A string content content to write to the blob.</param>
         /// <returns>A Task object.</returns>
-        private static async Task TestContainerSASAsync(string sasUri, string blobName, string blobContent)
+        private static async Task TestContainerSASAsync(Uri sasUri, string blobName, string blobContent)
         {
             // Try performing container operations with the SAS provided.
             // Note that the storage account credentials are not required here; the SAS provides the necessary
             // authentication information on the URI.
 
             // Return a reference to the container using the SAS URI.
-            CloudBlobContainer container = new CloudBlobContainer(new Uri(sasUri));
+            BlobContainerClient container = new BlobContainerClient(sasUri);
 
             // Return a reference to a blob to be created in the container.
-            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+            BlobClient blob = container.GetBlobClient(blobName);
 
             // Write operation: Upload a new blob to the container.
             try
@@ -937,15 +640,15 @@ namespace BlobStorage
                 msWrite.Position = 0;
                 using (msWrite)
                 {
-                    await blob.UploadFromStreamAsync(msWrite);
+                    await blob.UploadAsync(msWrite);
                 }
 
                 Console.WriteLine("Write operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Write operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -962,22 +665,17 @@ namespace BlobStorage
             // List operation: List the blobs in the container.
             try
             {
-                foreach (ICloudBlob blobItem in container.ListBlobs(
-                                                                    prefix: null, 
-                                                                    useFlatBlobListing: true, 
-                                                                    blobListingDetails: BlobListingDetails.None, 
-                                                                    options: null, 
-                                                                    operationContext: null))
+                foreach (BlobItem blobItem in container.GetBlobs())
                 {
-                    Console.WriteLine(blobItem.Uri);
+                    Console.WriteLine(blobItem.Name);
                 }
 
                 Console.WriteLine("List operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("List operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -998,7 +696,7 @@ namespace BlobStorage
                 msRead.Position = 0;
                 using (msRead)
                 {
-                    await blob.DownloadToStreamAsync(msRead);
+                    await blob.DownloadToAsync(msRead);
                     Console.WriteLine(msRead.Length);
                 }
 
@@ -1006,9 +704,9 @@ namespace BlobStorage
                 Console.WriteLine("Read operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Read operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1031,9 +729,9 @@ namespace BlobStorage
                 Console.WriteLine("Delete operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1057,70 +755,69 @@ namespace BlobStorage
         /// <summary>
         /// Reads the blob's properties.
         /// </summary>
-        /// <param name="blob">A CloudBlob object. All blob types (block blob, append blob, and page blob) are derived from CloudBlob.</param>
-        private static void PrintBlobPropertiesAndMetadata(CloudBlob blob)
+        /// <param name="blob">A BlobClient object. All blob types (block blob, append blob, and page blob) are derived from BlobClient.</param>
+        private static void PrintBlobPropertiesAndMetadata(BlobContainerClient container, BlobClient blob)
         {
             // Write out properties that are common to all blob types.
             Console.WriteLine();
             Console.WriteLine("-----Blob Properties-----");
             Console.WriteLine("\t Name: {0}", blob.Name);
-            Console.WriteLine("\t Container: {0}", blob.Container.Name);
-            Console.WriteLine("\t BlobType: {0}", blob.Properties.BlobType);
-            Console.WriteLine("\t IsSnapshot: {0}", blob.IsSnapshot);
+            Console.WriteLine("\t Container: {0}", blob.BlobContainerName);
+            Console.WriteLine("\t BlobType: {0}", blob.GetProperties().Value.BlobType);
 
             // If the blob is a snapshot, write out snapshot properties.
-            if (blob.IsSnapshot)
+            BlobUriBuilder builder = new BlobUriBuilder(blob.Uri);
+            if (builder.Snapshot != null)
             {
-                Console.WriteLine("\t SnapshotTime: {0}", blob.SnapshotTime);
-                Console.WriteLine("\t SnapshotQualifiedUri: {0}", blob.SnapshotQualifiedUri);
+                blob.CreateSnapshot();
+                Console.WriteLine($"Snapshot Time: {builder.Snapshot}");
+                Console.WriteLine($"Snapshot URI: {blob.Uri}");
             }
-
-            Console.WriteLine("\t LeaseState: {0}", blob.Properties.LeaseState);
-
+            var properties = blob.GetProperties().Value;
+            Console.WriteLine("\t LeaseState: {0}", properties.LeaseState);
             // If the blob has been leased, write out lease properties.
-            if (blob.Properties.LeaseState != LeaseState.Available)
+            if (properties.LeaseState != LeaseState.Available)
             {
-                Console.WriteLine("\t LeaseDuration: {0}", blob.Properties.LeaseDuration);
-                Console.WriteLine("\t LeaseStatus: {0}", blob.Properties.LeaseStatus);
+                Console.WriteLine("\t LeaseDuration: {0}", properties.LeaseDuration);
+                Console.WriteLine("\t LeaseStatus: {0}", properties.LeaseStatus);
             }
 
-            Console.WriteLine("\t CacheControl: {0}", blob.Properties.CacheControl);
-            Console.WriteLine("\t ContentDisposition: {0}", blob.Properties.ContentDisposition);
-            Console.WriteLine("\t ContentEncoding: {0}", blob.Properties.ContentEncoding);
-            Console.WriteLine("\t ContentLanguage: {0}", blob.Properties.ContentLanguage);
-            Console.WriteLine("\t ContentMD5: {0}", blob.Properties.ContentMD5);
-            Console.WriteLine("\t ContentType: {0}", blob.Properties.ContentType);
-            Console.WriteLine("\t ETag: {0}", blob.Properties.ETag);
-            Console.WriteLine("\t LastModified: {0}", blob.Properties.LastModified);
-            Console.WriteLine("\t Length: {0}", blob.Properties.Length);
+            Console.WriteLine("\t CacheControl: {0}", properties.CacheControl);
+            Console.WriteLine("\t ContentDisposition: {0}", properties.ContentDisposition);
+            Console.WriteLine("\t ContentEncoding: {0}", properties.ContentEncoding);
+            Console.WriteLine("\t ContentLanguage: {0}", properties.ContentLanguage);
+            Console.WriteLine("\t ContentMD5: {0}", properties.ContentHash);
+            Console.WriteLine("\t ContentType: {0}", properties.ContentType);
+            Console.WriteLine("\t ETag: {0}", properties.ETag);
+            Console.WriteLine("\t LastModified: {0}", properties.LastModified);
+            Console.WriteLine("\t Length: {0}", properties.ContentLength);
 
             // Write out properties specific to blob type.
-            switch (blob.BlobType)
+            switch (properties.BlobType)
             {
-                case BlobType.AppendBlob:
-                    CloudAppendBlob appendBlob = blob as CloudAppendBlob;
-                    Console.WriteLine("\t AppendBlobCommittedBlockCount: {0}", appendBlob.Properties.AppendBlobCommittedBlockCount);
-                    Console.WriteLine("\t StreamWriteSizeInBytes: {0}", appendBlob.StreamWriteSizeInBytes);
+                case BlobType.Append:
+                    AppendBlobClient appendBlob = container.GetAppendBlobClient(blob.Name);
+                    var appendProperties = appendBlob.GetProperties().Value;
+                    Console.WriteLine("\t AppendBlobCommittedBlockCount: {0}", appendBlob.GetProperties().Value.BlobCommittedBlockCount);
                     break;
-                case BlobType.BlockBlob:
-                    CloudBlockBlob blockBlob = blob as CloudBlockBlob;
-                    Console.WriteLine("\t StreamWriteSizeInBytes: {0}", blockBlob.StreamWriteSizeInBytes);
+                case BlobType.Block:
+                    BlockBlobClient blockBlob = container.GetBlockBlobClient(blob.Name);
+                    Console.WriteLine("\t StreamWriteSizeInBytes: {0}", blockBlob);
                     break;
-                case BlobType.PageBlob:
-                    CloudPageBlob pageBlob = blob as CloudPageBlob;
-                    Console.WriteLine("\t PageBlobSequenceNumber: {0}", pageBlob.Properties.PageBlobSequenceNumber);
-                    Console.WriteLine("\t StreamWriteSizeInBytes: {0}", pageBlob.StreamWriteSizeInBytes);
+                case BlobType.Page:
+                    PageBlobClient pageBlob = container.GetPageBlobClient(blob.Name);
+                    Console.WriteLine("\t PageBlobSequenceNumber: {0}", pageBlob.GetProperties().Value.BlobSequenceNumber);
                     break;
                 default:
                     break;
             }
 
-            Console.WriteLine("\t StreamMinimumReadSizeInBytes: {0}", blob.StreamMinimumReadSizeInBytes);
+           // Console.WriteLine("\t StreamMinimumReadSizeInBytes: {0}", blob.StreamMinimumReadSizeInBytes);
             Console.WriteLine();
 
             // Enumerate the blob's metadata.
             Console.WriteLine("Blob metadata:");
-            foreach (var metadataItem in blob.Metadata)
+            foreach (var metadataItem in properties.Metadata)
             {
                 Console.WriteLine("\tKey: {0}", metadataItem.Key);
                 Console.WriteLine("\tValue: {0}", metadataItem.Value);
@@ -1132,8 +829,8 @@ namespace BlobStorage
         /// <summary>
         /// Reads the virtual directory's properties.
         /// </summary>
-        /// <param name="dir">A CloudBlobDirectory object.</param>
-        private static void PrintVirtualDirectoryProperties(CloudBlobDirectory dir)
+        /// <param name="dir">A BlobClientDirectory object.</param>
+        private static void PrintVirtualDirectoryProperties(BlobClientDirectory dir)
         {
             Console.WriteLine();
             Console.WriteLine("-----Virtual Directory Properties-----");
@@ -1150,56 +847,45 @@ namespace BlobStorage
         /// The flat listing returns a segment containing all of the blobs matching the listing criteria.
         /// In a flat listing, blobs are not organized by virtual directory.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <param name="segmentSize">The size of the segment to return in each call to the listing operation.</param>
         /// <returns>A Task object.</returns>
-        private static async Task ListBlobsFlatListingAsync(CloudBlobContainer container, int? segmentSize)
+        private static async Task ListBlobsFlatListingAsync(BlobContainerClient container, int? segmentSize)
         {
             // List blobs to the console window.
             Console.WriteLine("List blobs in segments (flat listing):");
             Console.WriteLine();
 
             int i = 0;
-            BlobContinuationToken continuationToken = null;
-            BlobResultSegment resultSegment = null;
-
             try
             {
                 // Call ListBlobsSegmentedAsync and enumerate the result segment returned, while the continuation token is non-null.
                 // When the continuation token is null, the last segment has been returned and execution can exit the loop.
-                do
+                // This overload allows control of the segment size. You can return all remaining results by passing null for the maxResults parameter, 
+                // or by calling a different overload.
+                // Note that requesting the blob's metadata as part of the listing operation 
+                // populates the metadata, so it's not necessary to call FetchAttributes() to read the metadata.
+                IAsyncEnumerable<Page<BlobItem>> pages = container.GetBlobsAsync(traits: BlobTraits.Metadata).AsPages(pageSizeHint: segmentSize);
+                await foreach (Page<BlobItem> page in pages)
                 {
-                    // This overload allows control of the segment size. You can return all remaining results by passing null for the maxResults parameter, 
-                    // or by calling a different overload.
-                    // Note that requesting the blob's metadata as part of the listing operation 
-                    // populates the metadata, so it's not necessary to call FetchAttributes() to read the metadata.
-                    resultSegment = await container.ListBlobsSegmentedAsync(string.Empty, true, BlobListingDetails.Metadata, segmentSize, continuationToken, null, null);
-                    if (resultSegment.Results.Count() > 0)
+                    foreach (BlobItem blobItem in page.Values)
                     {
-                        Console.WriteLine("Page {0}:", ++i);
-                    }
 
-                    foreach (var blobItem in resultSegment.Results)
-                    {
                         Console.WriteLine("************************************");
-                        Console.WriteLine(blobItem.Uri);
+                        Console.WriteLine(blobItem.Name);
 
                         // A flat listing operation returns only blobs, not virtual directories.
                         // Write out blob properties and metadata.
-                        if (blobItem is CloudBlob)
+                        if (blobItem is BlobClient)
                         {
-                            PrintBlobPropertiesAndMetadata((CloudBlob)blobItem);
+                            BlobClient blob = container.GetBlobClient(blobItem.Name);
+                            PrintBlobPropertiesAndMetadata(container, blob);
                         }
                     }
-
-                    Console.WriteLine();
-
-                    // Get the continuation token.
-                    continuationToken = resultSegment.ContinuationToken;
-
-                } while (continuationToken != null);
+                }
+                Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1211,56 +897,44 @@ namespace BlobStorage
         /// Lists blobs in the specified container using a hierarchical listing, and calls this method recursively to return the contents of each 
         /// virtual directory. Reads the properties on each blob or virtual directory returned and writes them to the console window.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <param name="prefix">The blob prefix.</param>
         /// <returns>A Task object.</returns>
-        private static async Task ListBlobsHierarchicalListingAsync(CloudBlobContainer container, string prefix)
+        private static async Task ListBlobsHierarchicalListingAsync(BlobContainerClient container, string prefix)
         {
             // List blobs in segments.
             Console.WriteLine("List blobs (hierarchical listing):");
             Console.WriteLine();
-
-            // Enumerate the result segment returned.
-            BlobContinuationToken continuationToken = null;
-            BlobResultSegment resultSegment = null;
-
             try
             {
                 // Call ListBlobsSegmentedAsync recursively and enumerate the result segment returned, while the continuation token is non-null.
                 // When the continuation token is null, the last segment has been returned and execution can exit the loop.
                 // Note that blob snapshots cannot be listed in a hierarchical listing operation.
-                do
+                var resultSegment = container.GetBlobsByHierarchy(BlobTraits.Metadata,BlobStates.None, null, prefix);
+
+                foreach (var blobItem in resultSegment)
                 {
-                    resultSegment = await container.ListBlobsSegmentedAsync(prefix, false, BlobListingDetails.Metadata, null, null, null, null);
+                    Console.WriteLine("************************************");
+                    Console.WriteLine(blobItem.Blob.Name);
 
-                    foreach (var blobItem in resultSegment.Results)
+                    // A hierarchical listing returns both virtual directories and blobs.
+                    // Call recursively with the virtual directory prefix to enumerate the contents of each virtual directory.
+                    if (blobItem is BlobClientDirectory)
                     {
-                        Console.WriteLine("************************************");
-                        Console.WriteLine(blobItem.Uri);
-
-                        // A hierarchical listing returns both virtual directories and blobs.
-                        // Call recursively with the virtual directory prefix to enumerate the contents of each virtual directory.
-                        if (blobItem is CloudBlobDirectory)
-                        {
-                            PrintVirtualDirectoryProperties((CloudBlobDirectory)blobItem);
-                            CloudBlobDirectory dir = blobItem as CloudBlobDirectory;
-                            await ListBlobsHierarchicalListingAsync(container, dir.Prefix);
-                        }
-                        else
-                        {
-                            // Write out blob properties and metadata.
-                            PrintBlobPropertiesAndMetadata((CloudBlob)blobItem);
-                        }
+                        PrintVirtualDirectoryProperties((BlobClientDirectory)blobItem);
+                        BlobClientDirectory dir = blobItem as BlobClientDirectory;
+                        await ListBlobsHierarchicalListingAsync(container, dir.Prefix);
                     }
-
-                    Console.WriteLine();
-
-                    // Get the continuation token, if there are additional segments of results.
-                    continuationToken = resultSegment.ContinuationToken;
-
-                } while (continuationToken != null);
+                    else
+                    {
+                        BlobClient blob = container.GetBlobClient(blobItem.Blob.Name);
+                        // Write out blob properties and metadata.
+                        PrintBlobPropertiesAndMetadata(container, blob);
+                    }
+                }
+                Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1277,22 +951,25 @@ namespace BlobStorage
         /// </summary>
         /// <param name="container">The container.</param>
         /// <returns>A Task object.</returns>
-        private static async Task<CloudBlockBlob> CreateRandomlyNamedBlockBlobAsync(CloudBlobContainer container)
+        private static async Task<BlobClient> CreateRandomlyNamedBlockBlobAsync(BlobContainerClient container)
         {
             // Get a reference to a blob that does not yet exist.
             // The GetBlockBlobReference method does not make a request to the service, but only creates the object in memory.
             string blobName = BlobPrefix + Guid.NewGuid();
-            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+            BlobClient blob = container.GetBlobClient(blobName);
 
             // For the purposes of the sample, check to see whether the blob exists.
             Console.WriteLine("Blob {0} exists? {1}", blobName, await blob.ExistsAsync());
 
             try
             {
-                // Writing to the blob creates it on the service.
-                await blob.UploadTextAsync(string.Format("This is a blob named {0}", blobName));
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(string.Format("This is a blob named {0}", blobName))))
+                {
+                    // Writing to the blob creates it on the service.
+                    await blob.UploadAsync(stream);
+                }
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1313,22 +990,22 @@ namespace BlobStorage
         /// <param name="container">The container.</param>
         /// <param name="blobName">The blob name.</param>
         /// <returns>A Task object.</returns>
-        private static void GetExistingBlobReference(CloudBlobContainer container, string blobName)
+        private static void GetExistingBlobReference(BlobContainerClient container, string blobName)
         {
             try
             {
                 // Get a reference to a blob with a request to the server.
                 // If the blob does not exist, this call will fail with a 404 (Not Found).
-                ICloudBlob blob = container.GetBlobReferenceFromServer(blobName);
+                BlobClient blob = container.GetBlobClient(blobName);
 
                 // The previous call gets the blob's properties, so it's not necessary to call FetchAttributes
                 // to read a property.
                 Console.WriteLine("Blob {0} was last modified at {1} local time.", blobName,
-                    blob.Properties.LastModified.Value.LocalDateTime);
+                    blob.GetProperties().Value.LastModified.LocalDateTime);
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 404)
+                if (e.Status == 404)
                 {
                     Console.WriteLine("Blob {0} does not exist.", blobName);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1340,7 +1017,6 @@ namespace BlobStorage
                     throw;
                 }
             }
-
             Console.WriteLine();
         }
 
@@ -1350,22 +1026,22 @@ namespace BlobStorage
         /// <param name="container">The container.</param>
         /// <param name="blobName">The blob name.</param>
         /// <returns>A Task object.</returns>
-        private static async Task GetExistingBlobReferenceAsync(CloudBlobContainer container, string blobName)
+        private static async Task GetExistingBlobReferenceAsync(BlobContainerClient container, string blobName)
         {
             try
             {
                 // Get a reference to a blob with a request to the server.
                 // If the blob does not exist, this call will fail with a 404 (Not Found).
-                ICloudBlob blob = await container.GetBlobReferenceFromServerAsync(blobName);
+                BlobClient blob = container.GetBlobClient(blobName);
 
                 // The previous call gets the blob's properties, so it's not necessary to call FetchAttributes
                 // to read a property.
                 Console.WriteLine("Blob {0} was last modified at {1} local time.", blobName,
-                    blob.Properties.LastModified.Value.LocalDateTime);
+                    blob.GetProperties().Value.LastModified.LocalDateTime);
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 404)
+                if (e.Status == 404)
                 {
                     Console.WriteLine("Blob {0} does not exist.", blobName);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1377,21 +1053,20 @@ namespace BlobStorage
                     throw;
                 }
             }
-
             Console.WriteLine();
         }
 
         /// <summary>
         /// Creates the specified number of sequentially named block blobs, in a flat structure.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <param name="numberOfBlobs">The number of blobs to create.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CreateSequentiallyNamedBlockBlobsAsync(CloudBlobContainer container, int numberOfBlobs)
+        private static async Task CreateSequentiallyNamedBlockBlobsAsync(BlobContainerClient container, int numberOfBlobs)
         {
             try
             {
-                CloudBlockBlob blob;
+                BlobClient blob;
                 string blobName = string.Empty;
                 MemoryStream msWrite;
 
@@ -1401,26 +1076,26 @@ namespace BlobStorage
                     blobName = i.ToString("00000") + ".txt";
 
                     // Get a reference to the blob.
-                    blob = container.GetBlockBlobReference(blobName);
+                    blob = container.GetBlobClient(blobName);
 
-                    // Set a property on the blob.
-                    blob.Properties.ContentType = "text/html";
-
+                    Dictionary<string, string> metadata = new Dictionary<string, string>();
+ 
                     // Set some metadata on the blob.
-                    blob.Metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
-                    blob.Metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
+                    metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
+                    metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
 
+                    await blob.SetMetadataAsync(metadata);
                     // Write the name of the blob to its contents as well.
                     msWrite = new MemoryStream(Encoding.UTF8.GetBytes("This is blob " + blobName + "."));
                     msWrite.Position = 0;
                     using (msWrite)
                     {
                         // Uploading the blob sets the properties and metadata on the new blob.
-                        await blob.UploadFromStreamAsync(msWrite);
+                        await blob.UploadAsync(msWrite);
                     }
                 }
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1431,15 +1106,15 @@ namespace BlobStorage
         /// <summary>
         /// Creates the specified number of nested block blobs at a specified number of levels.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <param name="numberOfLevels">The number of levels of blobs to create.</param>
         /// <param name="numberOfBlobsPerLevel">The number of blobs to create per level.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CreateNestedBlockBlobsAsync(CloudBlobContainer container, short numberOfLevels, short numberOfBlobsPerLevel)
+        private static async Task CreateNestedBlockBlobsAsync(BlobContainerClient container, short numberOfLevels, short numberOfBlobsPerLevel)
         {
             try
             {
-                CloudBlockBlob blob;
+                BlobClient blob;
                 MemoryStream msWrite;
                 string blobName = string.Empty;
                 string virtualDirName = string.Empty;
@@ -1448,35 +1123,31 @@ namespace BlobStorage
                 for (int i = 1; i <= numberOfLevels; i++)
                 {
                     // Construct the virtual directory name, which becomes part of the blob name.
-                    virtualDirName += string.Format("level{0}{1}", i, container.ServiceClient.DefaultDelimiter);
+                    virtualDirName += string.Format("level{0}", i);
                     for (int j = 1; j <= numberOfBlobsPerLevel; j++)
                     {
                         // Construct string for blob name.
                         blobName = virtualDirName + string.Format("{0}-{1}.txt", i, j.ToString("00000"));
 
                         // Get a reference to the blob.
-                        blob = container.GetBlockBlobReference(blobName);
+                        blob = container.GetBlobClient(blobName);
 
                         // Write the blob URI to its contents.
-                        msWrite = new MemoryStream(Encoding.UTF8.GetBytes("Absolute URI to blob: " + blob.StorageUri.PrimaryUri + "."));
+                        msWrite = new MemoryStream(Encoding.UTF8.GetBytes("Absolute URI to blob: " + blob.Uri.AbsoluteUri + "."));
                         msWrite.Position = 0;
                         using (msWrite)
                         {
-                            await blob.UploadFromStreamAsync(msWrite);
+                            await blob.UploadAsync(msWrite);
                         }
-
-                        // Set a property on the blob.
-                        blob.Properties.ContentType = "text/html";
-                        await blob.SetPropertiesAsync();
-
+                        Dictionary<string, string> metadata = new Dictionary<string, string>();
                         // Set some metadata on the blob.
-                        blob.Metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
-                        blob.Metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
-                        await blob.SetMetadataAsync();
+                        metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
+                        metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
+                        await blob.SetMetadataAsync(metadata);
                     }
                 }
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1487,20 +1158,24 @@ namespace BlobStorage
         /// <summary>
         /// Creates a new blob and takes a snapshot of the blob.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CreateBlockBlobSnapshotAsync(CloudBlobContainer container)
+        private static async Task CreateBlockBlobSnapshotAsync(BlobContainerClient container)
         {
             // Create a new block blob in the container.
-            CloudBlockBlob baseBlob = container.GetBlockBlobReference("sample-base-blob.txt");
+            BlobClient baseBlob = container.GetBlobClient("sample-base-blob.txt");
 
             // Add blob metadata.
-            baseBlob.Metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
-
+            Dictionary<string, string> metadata = new Dictionary<string, string>();
+            metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
+            await baseBlob.SetMetadataAsync(metadata);
             try
             {
-                // Upload the blob to create it, with its metadata.
-                await baseBlob.UploadTextAsync(string.Format("Base blob: {0}", baseBlob.Uri.ToString()));
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(string.Format("Base blob: {0}", baseBlob.Uri.ToString()))))
+                {
+                    // Upload the blob to create it, with its metadata.
+                    await baseBlob.UploadAsync(stream);
+                }
 
                 // Sleep 5 seconds.
                 System.Threading.Thread.Sleep(5000);
@@ -1508,11 +1183,11 @@ namespace BlobStorage
                 // Create a snapshot of the base blob.
                 // Specify metadata at the time that the snapshot is created to specify unique metadata for the snapshot.
                 // If no metadata is specified when the snapshot is created, the base blob's metadata is copied to the snapshot.
-                Dictionary<string, string> metadata = new Dictionary<string, string>();
+                metadata = new Dictionary<string, string>();
                 metadata.Add("ApproxSnapshotCreatedDate", DateTime.UtcNow.ToString());
-                await baseBlob.CreateSnapshotAsync(metadata, null, null, null);
+                await baseBlob.CreateSnapshotAsync(metadata);
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1523,43 +1198,44 @@ namespace BlobStorage
         /// <summary>
         /// Gets a reference to a blob created previously, and copies it to a new blob in the same container.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CopyBlockBlobAsync(CloudBlobContainer container)
+        private static async Task CopyBlockBlobAsync(BlobContainerClient container)
         {
-            CloudBlockBlob sourceBlob = null;
-            CloudBlockBlob destBlob = null;
+            BlobClient sourceBlob = null;
+            BlobClient destBlob = null;
             string leaseId = null;
 
             try
             {
                 // Get a block blob from the container to use as the source.
-                sourceBlob = container.ListBlobs().OfType<CloudBlockBlob>().FirstOrDefault();
+                sourceBlob = container.GetBlobs().OfType<BlobClient>().FirstOrDefault();
 
                 // Lease the source blob for the copy operation to prevent another client from modifying it.
                 // Specifying null for the lease interval creates an infinite lease.
-                leaseId = await sourceBlob.AcquireLeaseAsync(null);
-
+                var leaseClient = sourceBlob.GetBlobLeaseClient(null);
+                var blobLease = await leaseClient.AcquireAsync(new TimeSpan(0));
+                leaseId = blobLease.Value.LeaseId;
                 // Get a reference to a destination blob (in this case, a new blob).
-                destBlob = container.GetBlockBlobReference("copy of " + sourceBlob.Name);
+                destBlob = container.GetBlobClient("copy of " + sourceBlob.Name);
 
                 // Ensure that the source blob exists.
                 if (await sourceBlob.ExistsAsync())
                 {
                     // Get the ID of the copy operation.
-                    string copyId = await destBlob.StartCopyAsync(sourceBlob);
+                    CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
 
                     // Fetch the destination blob's properties before checking the copy state.
-                    await destBlob.FetchAttributesAsync();
+                    var properties = destBlob.GetProperties().Value;
 
-                    Console.WriteLine("Status of copy operation: {0}", destBlob.CopyState.Status);
-                    Console.WriteLine("Completion time: {0}", destBlob.CopyState.CompletionTime);
-                    Console.WriteLine("Bytes copied: {0}", destBlob.CopyState.BytesCopied.ToString());
-                    Console.WriteLine("Total bytes: {0}", destBlob.CopyState.TotalBytes.ToString());
+                    Console.WriteLine("Status of copy operation: {0}", properties.CopyStatus);
+                    Console.WriteLine("Copy Status Description : {0}", properties.CopyStatusDescription);
+                    Console.WriteLine("Copy Progress: {0}", properties.CopyProgress);
                     Console.WriteLine();
+                    await copyFromUriOperation.WaitForCompletionAsync();
                 }
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1570,11 +1246,10 @@ namespace BlobStorage
                 // Break the lease on the source blob.
                 if (sourceBlob != null)
                 {
-                    await sourceBlob.FetchAttributesAsync();
-
-                    if (sourceBlob.Properties.LeaseState != LeaseState.Available)
+                    if (sourceBlob.GetProperties().Value.LeaseState != LeaseState.Available)
                     {
-                        await sourceBlob.BreakLeaseAsync(new TimeSpan(0));
+                        var leaseClient = sourceBlob.GetBlobLeaseClient(leaseId);
+                        await leaseClient.BreakAsync(new TimeSpan(0));
                     }
                 }
             }
@@ -1584,10 +1259,10 @@ namespace BlobStorage
         /// Creates a large block blob, and copies it to a new blob in the same container. If the copy operation
         /// does not complete within the specified interval, abort the copy operation.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <param name="sizeInMb">The size of block blob to create, in MB.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CopyLargeBlockBlobAsync(CloudBlobContainer container, int sizeInMb)
+        private static async Task CopyLargeBlockBlobAsync(BlobContainerClient container, int sizeInMb)
         {
             // Create an array of random bytes, of the specified size.
             byte[] bytes = new byte[sizeInMb * 1024 * 1024];
@@ -1595,10 +1270,10 @@ namespace BlobStorage
             rng.NextBytes(bytes);
 
             // Get a reference to a new block blob.
-            CloudBlockBlob sourceBlob = container.GetBlockBlobReference("LargeSourceBlob");
+            BlobClient sourceBlob = container.GetBlobClient("LargeSourceBlob");
 
             // Get a reference to the destination blob (in this case, a new blob).
-            CloudBlockBlob destBlob = container.GetBlockBlobReference("copy of " + sourceBlob.Name);
+            BlobClient destBlob = container.GetBlobClient("copy of " + sourceBlob.Name);
 
             MemoryStream msWrite = null;
             string copyId = null;
@@ -1611,24 +1286,24 @@ namespace BlobStorage
                 msWrite.Position = 0;
                 using (msWrite)
                 {
-                    await sourceBlob.UploadFromStreamAsync(msWrite);
+                    await sourceBlob.UploadAsync(msWrite);
                 }
 
                 // Lease the source blob for the copy operation to prevent another client from modifying it.
                 // Specifying null for the lease interval creates an infinite lease.
-                leaseId = await sourceBlob.AcquireLeaseAsync(null);
+                var leaseClient = sourceBlob.GetBlobLeaseClient(null);
+                var blobLease = await leaseClient.AcquireAsync(new TimeSpan(0));
+                leaseId = blobLease.Value.LeaseId;
 
                 // Get the ID of the copy operation.
-                copyId = await destBlob.StartCopyAsync(sourceBlob);
+                CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
 
-                // Fetch the destination blob's properties before checking the copy state.
-                await destBlob.FetchAttributesAsync();
 
                 // Sleep for 1 second. In a real-world application, this would most likely be a longer interval.
                 System.Threading.Thread.Sleep(1000);
 
                 // Check the copy status. If it is still pending, abort the copy operation.
-                if (destBlob.CopyState.Status == CopyStatus.Pending)
+                if (destBlob.GetProperties().Value.CopyStatus == CopyStatus.Pending)
                 {
                     await destBlob.AbortCopyAsync(copyId);
                     Console.WriteLine("Copy operation {0} has been aborted.", copyId);
@@ -1636,7 +1311,7 @@ namespace BlobStorage
 
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -1678,9 +1353,9 @@ namespace BlobStorage
         /// <summary>
         /// Uploads the blob as a set of 256 KB blocks.
         /// </summary>
-        /// <param name="container">A CloudBlobContainer object.</param>
+        /// <param name="container">A BlobContainerClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task UploadBlobInBlocksAsync(CloudBlobContainer container)
+        private static async Task UploadBlobInBlocksAsync(BlobContainerClient container)
         {
             // Create an array of random bytes, of the specified size.
             byte[] randomBytes = new byte[5 * 1024 * 1024];
@@ -1688,7 +1363,7 @@ namespace BlobStorage
             rnd.NextBytes(randomBytes);
 
             // Get a reference to a new block blob.
-            CloudBlockBlob blob = container.GetBlockBlobReference("sample-blob-" + Guid.NewGuid());
+            BlobClient blob = container.GetBlockBlobReference("sample-blob-" + Guid.NewGuid());
 
             // Specify the block size as 256 KB.
             int blockSize = 256 * 1024;
@@ -1748,7 +1423,7 @@ namespace BlobStorage
                         string md5Hash = Convert.ToBase64String(blockHash, 0, 16);
 
                         // Upload the block with the hash.
-                        await blob.PutBlockAsync(blockId, new MemoryStream(bytesToWrite), md5Hash);
+                        await blob.Upload.PutBlockAsync(blockId, new MemoryStream(bytesToWrite), md5Hash);
 
                         // Increment and decrement the counters.
                         bytesRead += bytesToRead;
@@ -1765,7 +1440,7 @@ namespace BlobStorage
                     // Read the block list again. Now all blocks will be committed.
                     await ReadBlockListAsync(blob);
                 }
-                catch (StorageException e)
+                catch (RequestFailedException e)
                 {
                     Console.WriteLine(e.Message);
                     Console.ReadLine();
@@ -1777,9 +1452,9 @@ namespace BlobStorage
         /// <summary>
         /// Reads the blob's block list, and indicates whether the blob has been committed.
         /// </summary>
-        /// <param name="blob">A CloudBlockBlob object.</param>
+        /// <param name="blob">A BlobClient object.</param>
         /// <returns>A Task object.</returns>
-        private static async Task ReadBlockListAsync(CloudBlockBlob blob)
+        private static async Task ReadBlockListAsync(BlobClient blob)
         {
             // Get the blob's block list.
             foreach (var listBlockItem in await blob.DownloadBlockListAsync(BlockListingFilter.All, null, null, null))
@@ -1810,13 +1485,13 @@ namespace BlobStorage
         /// <param name="blobName">A string containing the name of the blob.</param>
         /// <param name="policyName">A string containing the name of the stored access policy. If null, an ad-hoc SAS is created.</param>
         /// <returns>A string containing the URI for the blob, with the SAS token appended.</returns>
-        private static string GetBlobSasUri(CloudBlobContainer container, string blobName, string policyName = null)
+        private static string GetBlobSasUri(BlobContainerClient container, string blobName, string policyName = null)
         {
             string sasBlobToken;
 
             // Get a reference to a blob within the container.
             // Note that the blob may not exist yet, but a SAS can still be created for it.
-            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+            BlobClient blob = container.GetBlockBlobReference(blobName);
 
             if (policyName == null)
             {
@@ -1862,7 +1537,7 @@ namespace BlobStorage
             // Try performing blob operations using the SAS provided.
 
             // Return a reference to the blob using the SAS URI.
-            CloudBlockBlob blob = new CloudBlockBlob(new Uri(sasUri));
+            BlobClient blob = new BlobClient(new Uri(sasUri));
 
             // Create operation: Upload a blob with the specified name to the container.
             // If the blob does not exist, it will be created. If it does exist, it will be overwritten.
@@ -1872,15 +1547,15 @@ namespace BlobStorage
                 msWrite.Position = 0;
                 using (msWrite)
                 {
-                    await blob.UploadFromStreamAsync(msWrite);
+                    await blob.UploadAsync(msWrite);
                 }
 
                 Console.WriteLine("Create operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Create operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1907,7 +1582,7 @@ namespace BlobStorage
                 Console.WriteLine("Write operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 if (e.RequestInformation.HttpStatusCode == 403)
                 {
@@ -1929,7 +1604,7 @@ namespace BlobStorage
                 MemoryStream msRead = new MemoryStream();
                 using (msRead)
                 {
-                    await blob.DownloadToStreamAsync(msRead);
+                    await blob.DownloadToAsync(msRead);
                     msRead.Position = 0;
                     using (StreamReader reader = new StreamReader(msRead, true))
                     {
@@ -1946,9 +1621,9 @@ namespace BlobStorage
                 Console.WriteLine("Read operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Read operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1969,9 +1644,9 @@ namespace BlobStorage
                 Console.WriteLine("Delete operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
-                if (e.RequestInformation.HttpStatusCode == 403)
+                if (e.Status == 403)
                 {
                     Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
                     Console.WriteLine("Additional error information: " + e.Message);
@@ -1992,9 +1667,9 @@ namespace BlobStorage
         /// <param name="container">The container.</param>
         /// <param name="numBytes">The number of bytes to upload.</param>
         /// <returns></returns>
-        private static async Task UploadByteArrayAsync(CloudBlobContainer container, long numBytes)
+        private static async Task UploadByteArrayAsync(BlobContainerClient container, long numBytes)
         {
-            CloudBlockBlob blob = container.GetBlockBlobReference(BlobPrefix + "byte-array-" + Guid.NewGuid());
+            BlobClient blob = container.GetBlockBlobReference(BlobPrefix + "byte-array-" + Guid.NewGuid());
 
             // Write an array of random bytes to a block blob. 
             Console.WriteLine("Write an array of bytes to a block blob");
@@ -2006,7 +1681,7 @@ namespace BlobStorage
             {
                 await blob.UploadFromByteArrayAsync(sampleBytes, 0, sampleBytes.Length);
             }
-            catch (StorageException e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -2019,13 +1694,13 @@ namespace BlobStorage
         /// <summary>
         /// Query the Cross-Origin Resource Sharing (CORS) rules for the Queue service
         /// </summary>
-        /// <param name="blobClient"></param>
-        private static async Task CorsSample(CloudBlobClient blobClient)
+        /// <param name="blobServiceClient"></param>
+        private static async Task CorsSample(BlobServiceClient blobServiceClient)
         {
             // Get CORS rules
             Console.WriteLine("Get CORS rules");
 
-            ServiceProperties serviceProperties = await blobClient.GetServicePropertiesAsync();
+            ServiceProperties serviceProperties = await blobServiceClient.GetServicePropertiesAsync();
 
             // Add CORS rule
             Console.WriteLine("Add CORS rule");
@@ -2040,7 +1715,7 @@ namespace BlobStorage
             };
 
             serviceProperties.Cors.CorsRules.Add(corsRule);
-            await blobClient.SetServicePropertiesAsync(serviceProperties);
+            await blobServiceClient.SetPropertiesAsync(serviceProperties);
             Console.WriteLine();
         }
 
@@ -2049,7 +1724,7 @@ namespace BlobStorage
         /// </summary>
         /// <param name="container"></param>
         /// <returns>A Task object.</returns>
-        private static async Task PageRangesSample(CloudBlobContainer container)
+        private static async Task PageRangesSample(BlobContainerClient container)
         {
             BlobRequestOptions requestOptions = new BlobRequestOptions { RetryPolicy = new ExponentialRetry(TimeSpan.FromSeconds(1), 3) };
             await container.CreateIfNotExistsAsync(requestOptions, null);
