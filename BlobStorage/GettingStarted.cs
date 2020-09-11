@@ -72,9 +72,7 @@ namespace BlobStorage
             {
                 // The call below will fail if the sample is configured to use the storage emulator in the connection string, but 
                 // the emulator is not running.
-                // Change the retry policy for this call so that if it fails, it fails quickly.
-                BlobRequestOptions requestOptions = new BlobRequestOptions() { RetryPolicy = new NoRetry() };
-                await container.CreateIfNotExistsAsync(requestOptions, null);
+                await container.CreateIfNotExistsAsync();
             }
             catch (Exception)
             {
