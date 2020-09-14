@@ -58,7 +58,7 @@ namespace BlobStorage
             {
                 blobServiceClient = new BlobServiceClient(CloudConfigurationManager.GetSetting("StorageConnectionString"));
             }
-            catch (Exception e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -96,7 +96,7 @@ namespace BlobStorage
                 // Page Blob Ranges
                 await PageRangesSample(container);
             }
-            catch (Exception e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -172,6 +172,10 @@ namespace BlobStorage
 
             // Make the container private again.
             await SetAnonymousAccessLevelAsync(container, PublicAccessType.None);
+
+            // Test container lease conditions.
+            // This code creates and deletes additional containers.
+            await ManageContainerLeasesAsync(blobServiceClient);
         }
 
         /// <summary>
@@ -186,7 +190,7 @@ namespace BlobStorage
 
             // Get a reference to the blob created above from the server.
             // This call will fail if the blob does not yet exist.
-            await GetExistingBlobReferenceAsync(container, blob.Name);
+            GetExistingBlobReferenceAsync(container, blob.Name);
 
             // Create a specified number of block blobs in a flat structure.
             await CreateSequentiallyNamedBlockBlobsAsync(container, 5);
@@ -226,6 +230,7 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CallSasSamples(BlobContainerClient container)
         {
+           
             const string BlobName1 = "sasBlob1.txt";
             const string BlobContent1 = "Blob created with an ad-hoc SAS granting write permissions on the container.";
 
@@ -361,18 +366,16 @@ namespace BlobStorage
         {
             Console.WriteLine("List all containers beginning with prefix {0}, plus container metadata:", prefix);
 
-            Pageable<BlobContainerItem> Pageable = null;
-
             try
             {
                     // List containers beginning with the specified prefix, returning segments of 5 results each. 
                     // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
                     // Requesting the container's metadata as part of the listing operation populates the metadata, 
                     // so it's not necessary to call FetchAttributes() to read the metadata.
-                    Pageable = blobServiceClient.GetBlobContainers(BlobContainerTraits.Metadata, prefix: prefix);
+                    var Pageable = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
                     
                     // Enumerate the containers returned.
-                    foreach (var container in Pageable)
+                    await foreach (var container in Pageable)
                     {
                         Console.WriteLine("\tContainer:" + container.Name);
 
@@ -511,6 +514,175 @@ namespace BlobStorage
             }
 
             Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Demonstrates container lease states: available, breaking, broken, and expired.
+        /// A lease is used in each example to delete the container.
+        /// </summary>
+        /// <param name="blobClient">The Blob service client.</param>
+        /// <returns>A Task object.</returns>
+        private static async Task ManageContainerLeasesAsync(BlobServiceClient blobServiceClient)
+        {
+            BlobContainerClient container1 = null;
+            BlobContainerClient container2 = null;
+            BlobContainerClient container3 = null;
+            BlobContainerClient container4 = null;
+            BlobContainerClient container5 = null;
+
+            // Lease duration is 15 seconds.
+            TimeSpan leaseDuration = new TimeSpan(0, 0, 15);
+
+            const string LeasingPrefix = "leasing-";
+
+            try
+            {
+                string leaseId = null;
+                BlobRequestConditions condition = null;
+
+                /* 
+                    Case 1: Lease is available
+                */
+
+                // Lease is available on the new container. Acquire the lease and delete the leased container.
+                container1 = blobServiceClient.GetBlobContainerClient(LeasingPrefix + Guid.NewGuid());
+                await container1.CreateIfNotExistsAsync();
+
+                // Get container properties to see the available lease.
+                PrintContainerLeaseProperties(container1);
+
+                // Acquire the lease.
+                var leaseContainer1 = container1.GetBlobLeaseClient();
+                var containerLease1 = await leaseContainer1.AcquireAsync(leaseDuration);
+                leaseId = containerLease1.Value.LeaseId;
+                // Get container properties again to see that the container is leased.
+                PrintContainerLeaseProperties(container1);
+
+                // Create an access condition using the lease ID, and use it to delete the leased container..
+                condition = new BlobRequestConditions() { LeaseId = leaseId };
+                await container1.DeleteAsync(condition);
+                Console.WriteLine("Deleted container {0}", container1.Name);
+
+                /* 
+                    Case 2: Lease is breaking
+                */
+
+                container2 = blobServiceClient.GetBlobContainerClient(LeasingPrefix + Guid.NewGuid());
+                await container2.CreateIfNotExistsAsync();
+
+                // Acquire the lease.
+                var leaseContainer2 = container1.GetBlobLeaseClient();
+                var containerLease2 = await leaseContainer1.AcquireAsync(leaseDuration);
+                leaseId = containerLease2.Value.LeaseId;
+
+                // Break the lease. Passing null indicates that the break interval will be the remainder of the current lease.
+                await leaseContainer2.BreakAsync(null);
+
+                // Get container properties to see the breaking lease.
+                // The lease break interval has not yet elapsed.
+                PrintContainerLeaseProperties(container2);
+
+                // Delete the container. If the lease is breaking, the container can be deleted by
+                // passing the lease ID. 
+                condition = new BlobRequestConditions() { LeaseId = leaseId };
+                await container2.DeleteAsync(condition);
+                Console.WriteLine("Deleted container {0}", container2.Name);
+
+                /* 
+                    Case 3: Lease is broken
+                */
+
+                container3 = blobServiceClient.GetBlobContainerClient(LeasingPrefix + Guid.NewGuid());
+                await container3.CreateIfNotExistsAsync();
+
+                // Acquire the lease.
+                var leaseContainer3 = container1.GetBlobLeaseClient();
+                var containerLease3 = await leaseContainer1.AcquireAsync(leaseDuration);
+                leaseId = containerLease3.Value.LeaseId;
+
+                // Break the lease. Passing 0 breaks the lease immediately.
+                var result = await leaseContainer3.BreakAsync(new TimeSpan(0));
+
+                // Get container properties to see that the lease is broken.
+                PrintContainerLeaseProperties(container3);
+
+                // Once the lease is broken, delete the container without the lease ID.
+                await container3.DeleteAsync();
+                Console.WriteLine("Deleted container {0}", container3.Name);
+
+                /* 
+                    Case 4: Lease has expired.
+                */
+
+                container4 = blobServiceClient.GetBlobContainerClient(LeasingPrefix + Guid.NewGuid());
+                await container4.CreateIfNotExistsAsync();
+
+                // Acquire the lease.
+                var leaseContainer4 = container1.GetBlobLeaseClient();
+                var containerLease4 = await leaseContainer1.AcquireAsync(leaseDuration);
+                leaseId = containerLease4.Value.LeaseId;
+
+                // Sleep for 16 seconds to allow lease to expire.
+                Console.WriteLine("Waiting 16 seconds for lease break interval to expire....");
+                System.Threading.Thread.Sleep(new TimeSpan(0, 0, 16));
+
+                // Get container properties to see that the lease has expired.
+                PrintContainerLeaseProperties(container4);
+
+                // Delete the container without the lease ID.
+                await container4.DeleteAsync();
+
+                /* 
+                    Case 5: Attempt to delete leased container without lease ID.
+                */
+
+                container5 = blobServiceClient.GetBlobContainerClient(LeasingPrefix + Guid.NewGuid());
+                await container5.CreateIfNotExistsAsync();
+
+                // Acquire the lease.
+                var leaseContainer5 = container1.GetBlobLeaseClient();
+                var containerLease5 = await leaseContainer1.AcquireAsync(leaseDuration);
+                leaseId = containerLease5.Value.LeaseId;
+
+                // Get container properties to see that the container has been leased.
+                PrintContainerLeaseProperties(container5);
+
+                // Attempt to delete the leased container without the lease ID.
+                // This operation will result in an error.
+                // Note that in a real-world scenario, it would most likely be another client attempting to delete the container.
+                await container5.DeleteAsync();
+            }
+            catch (RequestFailedException e)
+            {
+                if (e.Status == 412)
+                {
+                    // Handle the error demonstrated for case 5 above and continue execution.
+                    Console.WriteLine("The container is leased and cannot be deleted without specifying the lease ID.");
+                    Console.WriteLine("More information: {0}", e.Message);
+                }
+                else
+                {
+                    // Output error information for any other errors, but continue execution.
+                    Console.WriteLine(e.Message);
+                }
+            }
+            finally
+            {
+                // Enumerate containers based on the prefix used to name them, and delete any remaining containers.
+                foreach (var container in blobServiceClient.GetBlobContainers(prefix: LeasingPrefix))
+                {
+                    var containerClient = blobServiceClient.GetBlobContainerClient(container.Name);
+                    if (container.Properties.LeaseState == LeaseState.Leased || container.Properties.LeaseState == LeaseState.Breaking)
+                    {
+                        var leaseClient = containerClient.GetBlobLeaseClient();
+                         await leaseClient.BreakAsync(new TimeSpan(0));
+                    }
+
+                    Console.WriteLine();
+                    Console.WriteLine("Deleting container: {0}", container.Name);
+                    await containerClient.DeleteAsync();
+                }
+            }
         }
 
         /// <summary>
@@ -860,7 +1032,6 @@ namespace BlobStorage
             Console.WriteLine("List blobs in segments (flat listing):");
             Console.WriteLine();
 
-            int i = 0;
             try
             {
                 // Call ListBlobsSegmentedAsync and enumerate the result segment returned, while the continuation token is non-null.
@@ -880,11 +1051,9 @@ namespace BlobStorage
 
                         // A flat listing operation returns only blobs, not virtual directories.
                         // Write out blob properties and metadata.
-                        if (blobItem is BlobClient)
-                        {
-                            BlobClient blob = container.GetBlobClient(blobItem.Name);
-                            PrintBlobPropertiesAndMetadata(container, blob);
-                        }
+                        BlobClient blob = container.GetBlobClient(blobItem.Name);
+                        PrintBlobPropertiesAndMetadata(container, blob);
+
                     }
                 }
                 Console.WriteLine();
@@ -1042,7 +1211,7 @@ namespace BlobStorage
         /// <param name="container">The container.</param>
         /// <param name="blobName">The blob name.</param>
         /// <returns>A Task object.</returns>
-        private static async Task GetExistingBlobReferenceAsync(BlobContainerClient container, string blobName)
+        private static void GetExistingBlobReferenceAsync(BlobContainerClient container, string blobName)
         {
             try
             {
@@ -1470,16 +1639,16 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task ReadBlockListAsync(BlockBlobClient blob)
         {
-            var blockList =  blob.GetBlockListAsync().Result.Value;
+            var blockList =await blob.GetBlockListAsync();
             // Get the blob's block list.
-            foreach (var listBlockItem in blockList.CommittedBlocks)
+            foreach (var listBlockItem in blockList.Value.CommittedBlocks)
             {
                 Console.WriteLine(
                                     "Block {0} has been committed to block list. Block length = {1}",
                                     listBlockItem.Name,
                                     listBlockItem.Size);
             }
-            foreach (var listBlockItem in blockList.UncommittedBlocks)
+            foreach (var listBlockItem in blockList.Value.UncommittedBlocks)
             {
                 Console.WriteLine(
                                       "Block {0} is uncommitted. Block length = {1}",

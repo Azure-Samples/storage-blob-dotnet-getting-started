@@ -16,8 +16,15 @@
 
 namespace BlobStorage
 {
+    using Azure;
+    using Azure.Storage;
     using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Blobs.Specialized;
+    using Azure.Storage.Sas;
+    using Microsoft.Azure;
     using System;
+    using System.Data.SqlTypes;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
@@ -89,35 +96,40 @@ namespace BlobStorage
 
             // Upload a BlockBlob to the newly created container
             Console.WriteLine("2. Uploading BlockBlob");
-            BlobClient blockBlob = container.GetBlockBlobReference(ImageToUpload);
+            BlockBlobClient blockBlob = container.GetBlockBlobClient(ImageToUpload);
+
+
 
             // Set the blob's content type so that the browser knows to treat it as an image.
-            blockBlob.Properties.ContentType = "image/png";
-            await blockBlob.UploadFromFileAsync(ImageToUpload);
+            await blockBlob.UploadAsync(File.OpenRead(ImageToUpload));
 
             // List all the blobs in the container.
             /// Note that the ListBlobs method is called synchronously, for the purposes of the sample. However, in a real-world
             /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
             Console.WriteLine("3. List Blobs in Container");
-            foreach (IListBlobItem blob in container.ListBlobs())
+            foreach (var blob in container.GetBlobs())
             {
                 // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
                 // Use blob.GetType() and cast to appropriate type to gain access to properties specific to each type
-                Console.WriteLine("- {0} (type: {1})", blob.Uri, blob.GetType());
+                Console.WriteLine("- {0} (type: {1})", blob.Name, blob.GetType());
             }
 
             // Download a blob to your file system
             Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-            await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", ImageToUpload), FileMode.Create);
+            File.Create(string.Format("./CopyOf{0}", ImageToUpload));
+            using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
+            {
+                await blockBlob.DownloadToAsync(file);
+            }
 
             // Create a read-only snapshot of the blob
             Console.WriteLine("5. Create a read-only snapshot of the blob");
-            BlobClient blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
+            var blockBlobSnapshot = await blockBlob.CreateSnapshotAsync();
 
             // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
             // It is included for the purposes of the example. 
             Console.WriteLine("6. Delete block blob and all of its snapshots");
-            await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
+            await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
 
             // Note that deleting the container also deletes any blobs in the container, and their snapshots.
             // In the case of the sample, we delete the blob and its snapshots, and then the container,
@@ -134,24 +146,24 @@ namespace BlobStorage
         {
             const string ImageToUpload = "HelloWorld.png";
             string containerName = ContainerPrefix + Guid.NewGuid();
-
+            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
+            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("AzureStorageEmulatorAccountKey"));
             // Get an account SAS token.
-            string sasToken = GetAccountSASToken();
-
-            // Use the account SAS token to create authentication credentials.
-            StorageCredentials accountSAS = new StorageCredentials(sasToken);
+            SasQueryParameters sasToken = GetAccountSASToken(storageSharedKeyCredential);
 
             // Informational: Print the Account SAS Signature and Token.
             Console.WriteLine();
-            Console.WriteLine("Account SAS Signature: " + accountSAS.SASSignature);
-            Console.WriteLine("Account SAS Token: " + accountSAS.SASToken);
+            Console.WriteLine("Account SAS Signature: " + sasToken.Signature);
+            Console.WriteLine("Account SAS Token: " + sasToken.ToString());
             Console.WriteLine();
 
             // Get the URI for the container.
             Uri containerUri = GetContainerUri(containerName);
 
             // Get a reference to a container using the URI and the SAS token.
-            BlobContainerClient container = new BlobContainerClient(containerUri, accountSAS);
+            UriBuilder sasUri = new UriBuilder(containerUri);
+            sasUri.Query = sasToken.ToString();
+            BlobContainerClient container = new BlobContainerClient(sasUri.Uri);
 
             try
             {
@@ -160,7 +172,7 @@ namespace BlobStorage
 
                 await container.CreateIfNotExistsAsync();
             }
-            catch (Exception e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.ToString());
                 Console.WriteLine("If you are running with the default configuration, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
@@ -178,37 +190,36 @@ namespace BlobStorage
 
                 // Upload a BlockBlob to the newly created container
                 Console.WriteLine("2. Uploading BlockBlob");
-                BlobClient blockBlob = container.GetBlockBlobReference(ImageToUpload);
-                await blockBlob.UploadFromFileAsync(ImageToUpload);
+                BlockBlobClient blockBlob = container.GetBlockBlobClient(ImageToUpload);
+                await blockBlob.UploadAsync(File.OpenRead(ImageToUpload));
 
                 // List all the blobs in the container 
-                Console.WriteLine("3. List Blobs in Container");
-                BlobContinuationToken token = null;
-                do
+                Console.WriteLine("3. List Blobs in Container");           
+                var resultSegment = container.GetBlobsAsync();
+ 
+                await foreach (var blob in resultSegment)
                 {
-                    BlobResultSegment resultSegment = await container.ListBlobsSegmentedAsync(token);
-                    token = resultSegment.ContinuationToken;
-                    foreach (IListBlobItem blob in resultSegment.Results)
-                    {
-                        // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
-                        Console.WriteLine("{0} (type: {1}", blob.Uri, blob.GetType());
-                    }
+                    // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
+                    Console.WriteLine("{0} (type: {1}", blob.Name, blob.GetType());
                 }
-                while (token != null);
 
                 // Download a blob to your file system
                 Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-                await blockBlob.DownloadToFileAsync(string.Format("./CopyOf{0}", ImageToUpload), FileMode.Create);
+                File.Create(string.Format("./CopyOf{0}", ImageToUpload));
+                using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
+                {
+                    await blockBlob.DownloadToAsync(file);
+                }
 
                 // Create a read-only snapshot of the blob
                 Console.WriteLine("5. Create a read-only snapshot of the blob");
-                BlobClient blockBlobSnapshot = await blockBlob.CreateSnapshotAsync(null, null, null, null);
+                var blockBlobSnapshot = await blockBlob.CreateSnapshotAsync();
 
                 // Delete the blob and its snapshots.
                 Console.WriteLine("6. Delete block Blob and all of its snapshots");
-                await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
+                await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
             }
-            catch (Exception e)
+            catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
@@ -236,9 +247,6 @@ namespace BlobStorage
             // Retrieve storage account information from connection string
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
-            // Create a blob client for interacting with the blob service.
-            BlobServiceClient blobServiceClient = blobServiceClient.CreateBlobServiceClient();
-
             // Create a container for organizing blobs within the storage account.
             Console.WriteLine("1. Creating Container");
             BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
@@ -246,7 +254,7 @@ namespace BlobStorage
 
             // Create a page blob in the newly created container.  
             Console.WriteLine("2. Creating Page Blob");
-            CloudPageBlob pageBlob = container.GetPageBlobReference(PageBlobName);
+            PageBlobClient pageBlob = container.GetPageBlobClient(PageBlobName);
             await pageBlob.CreateAsync(512 * 2 /*size*/); // size needs to be multiple of 512 bytes
 
             // Write to a page blob 
@@ -254,28 +262,27 @@ namespace BlobStorage
             byte[] samplePagedata = new byte[512];
             Random random = new Random();
             random.NextBytes(samplePagedata);
-            await pageBlob.UploadFromByteArrayAsync(samplePagedata, 0, samplePagedata.Length);
+            using (var stream = new MemoryStream(samplePagedata))
+            {
+                await pageBlob.UploadPagesAsync(stream, 0);
+            }
 
             // List all blobs in this container. Because a container can contain a large number of blobs the results 
             // are returned in segments with a maximum of 5000 blobs per segment. You can define a smaller maximum segment size
             // using the maxResults parameter on ListBlobsSegmentedAsync.
             Console.WriteLine("3. List Blobs in Container");
-            BlobContinuationToken token = null;
-            do
+            var resultSegment = container.GetBlobsAsync();
+
+            await foreach (var blob in resultSegment)
             {
-                BlobResultSegment resultSegment = await container.ListBlobsSegmentedAsync(token);
-                token = resultSegment.ContinuationToken;
-                foreach (IListBlobItem blob in resultSegment.Results)
-                {
-                    // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
-                    Console.WriteLine("{0} (type: {1}", blob.Uri, blob.GetType());
-                }
+                // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
+                Console.WriteLine("{0} (type: {1}", blob.Name, blob.GetType());
             }
-            while (token != null);
 
             // Read from a page blob
             Console.WriteLine("4. Read from a Page Blob");
-            int bytesRead = await pageBlob.DownloadRangeToByteArrayAsync(samplePagedata, 0, 0, samplePagedata.Count());
+            HttpRange httpRange = new HttpRange(0, samplePagedata.Count());
+            var downloadInfo = await pageBlob.DownloadAsync(httpRange);
 
             // Clean up after the demo 
             Console.WriteLine("6. Delete page Blob");
@@ -295,14 +302,14 @@ namespace BlobStorage
             // Retrieve storage account information from connection string
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
 
-            return blobServiceClient.CreateBlobServiceClient().GetBlobContainerClient(containerName).Uri;
+            return blobServiceClient.GetBlobContainerClient(containerName).Uri;
         }
 
         /// <summary>
         /// Creates an Account SAS Token
         /// </summary>
         /// <returns>A SAS token.</returns>
-        private static string GetAccountSASToken()
+        private static SasQueryParameters GetAccountSASToken(StorageSharedKeyCredential sharedKeyCredential)
         {
             // Retrieve storage account information from connection string
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
@@ -312,19 +319,17 @@ namespace BlobStorage
             // ResourceType: Container
             // Expires in 24 hours
             // Protocols: HTTPS or HTTP (note that the storage emulator does not support HTTPS)
-            SharedAccessAccountPolicy policy = new SharedAccessAccountPolicy()
+            AccountSasBuilder accountSasBuilder = new AccountSasBuilder
             {
-                // When the start time for the SAS is omitted, the start time is assumed to be the time when the storage service receives the request. 
-                // Omitting the start time for a SAS that is effective immediately helps to avoid clock skew.
-                Permissions = SharedAccessAccountPermissions.Read | SharedAccessAccountPermissions.Write | SharedAccessAccountPermissions.List | SharedAccessAccountPermissions.Create | SharedAccessAccountPermissions.Delete,
-                Services = SharedAccessAccountServices.Blob,
-                ResourceTypes = SharedAccessAccountResourceTypes.Container | SharedAccessAccountResourceTypes.Object,
-                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
-                Protocols = SharedAccessProtocol.HttpsOrHttp
+                StartsOn = DateTime.UtcNow.AddHours(-1),
+                ExpiresOn = DateTime.UtcNow.AddHours(1),
+                Services = AccountSasServices.Blobs,
+                ResourceTypes = AccountSasResourceTypes.All
             };
 
-            // Create new storage credentials using the SAS token.
-            string sasToken = blobServiceClient.GetSharedAccessSignature(policy);
+            accountSasBuilder.SetPermissions(AccountSasPermissions.All);
+
+            var sasToken = accountSasBuilder.ToSasQueryParameters(sharedKeyCredential);
 
             // Return the SASToken
             return sasToken;
