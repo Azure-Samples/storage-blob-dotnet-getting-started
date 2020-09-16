@@ -116,7 +116,6 @@ namespace BlobStorage
 
             // Download a blob to your file system
             Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-            File.Create(string.Format("./CopyOf{0}", ImageToUpload));
             using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
             {
                 await blockBlob.DownloadToAsync(file);
@@ -205,7 +204,6 @@ namespace BlobStorage
 
                 // Download a blob to your file system
                 Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-                File.Create(string.Format("./CopyOf{0}", ImageToUpload));
                 using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
                 {
                     await blockBlob.DownloadToAsync(file);
@@ -311,9 +309,6 @@ namespace BlobStorage
         /// <returns>A SAS token.</returns>
         private static SasQueryParameters GetAccountSASToken(StorageSharedKeyCredential sharedKeyCredential)
         {
-            // Retrieve storage account information from connection string
-            BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
-
             // Create a new access policy for the account with the following properties:
             // Permissions: Read, Write, List, Create, Delete
             // ResourceType: Container
@@ -321,13 +316,17 @@ namespace BlobStorage
             // Protocols: HTTPS or HTTP (note that the storage emulator does not support HTTPS)
             AccountSasBuilder accountSasBuilder = new AccountSasBuilder
             {
-                StartsOn = DateTime.UtcNow.AddHours(-1),
-                ExpiresOn = DateTime.UtcNow.AddHours(1),
+                // Allow access to blobs
                 Services = AccountSasServices.Blobs,
-                ResourceTypes = AccountSasResourceTypes.All
+
+                // Allow access to the service level APIs
+                ResourceTypes = AccountSasResourceTypes.All,
+
+                // Access expires in 1 hour!
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
             };
 
-            accountSasBuilder.SetPermissions(AccountSasPermissions.All);
+            accountSasBuilder.SetPermissions(AccountSasPermissions.Read | AccountSasPermissions.Write | AccountSasPermissions.Create | AccountSasPermissions.List | AccountSasPermissions.Delete);
 
             var sasToken = accountSasBuilder.ToSasQueryParameters(sharedKeyCredential);
 

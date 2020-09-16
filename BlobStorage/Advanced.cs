@@ -250,6 +250,16 @@ namespace BlobStorage
             // Create the container if it does not already exist.
             await container.CreateIfNotExistsAsync();
 
+            BlobSignedIdentifier blobSignedIdentifier = new BlobSignedIdentifier();
+            blobSignedIdentifier.AccessPolicy.StartsOn = DateTimeOffset.UtcNow.AddHours(-1);
+            blobSignedIdentifier.AccessPolicy.ExpiresOn = DateTimeOffset.UtcNow.AddHours(1);
+            blobSignedIdentifier.AccessPolicy.Permissions = "rwdl";
+            blobSignedIdentifier.Id = sharedAccessPolicyName;
+            IEnumerable<BlobSignedIdentifier> blobSignedIdentifiers = new List<BlobSignedIdentifier>() {
+            blobSignedIdentifier
+            };
+           
+            container.SetAccessPolicy(permissions: blobSignedIdentifiers);
             // Generate an  SAS URI for the container with write and list permissions.
             Uri ContainerSAS = GetContainerSasUri(container, storageSharedKeyCredential);
 
@@ -298,16 +308,24 @@ namespace BlobStorage
                 serviceProperties.Logging.Read = true;
                 serviceProperties.Logging.Delete = true;
                 serviceProperties.Logging.Write = true;
+                BlobRetentionPolicy blobRetentionPolicy = new BlobRetentionPolicy();
+                blobRetentionPolicy.Days = 14;
+                blobRetentionPolicy.Enabled = true;
+                serviceProperties.Logging.RetentionPolicy.Enabled = true;
                 serviceProperties.Logging.RetentionPolicy.Days = 14;
                 serviceProperties.Logging.Version = "1.0";
 
                 // Configure service properties for hourly and minute metrics. 
                 // Set retention policy to 7 days.
+                serviceProperties.HourMetrics.Enabled = true;
                 serviceProperties.HourMetrics.IncludeApis = true;
+                serviceProperties.HourMetrics.RetentionPolicy.Enabled = true;
                 serviceProperties.HourMetrics.RetentionPolicy.Days = 7;
                 serviceProperties.HourMetrics.Version = "1.0";
 
+                serviceProperties.MinuteMetrics.Enabled = true;
                 serviceProperties.MinuteMetrics.IncludeApis = true;
+                serviceProperties.MinuteMetrics.RetentionPolicy.Enabled = true;
                 serviceProperties.MinuteMetrics.RetentionPolicy.Days = 7;
                 serviceProperties.MinuteMetrics.Version = "1.0";
 
@@ -755,7 +773,7 @@ namespace BlobStorage
                 ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
                 IPRange = new SasIPRange(IPAddress.None, IPAddress.None)
             };
-            policy.SetPermissions(BlobSasPermissions.All);
+            policy.SetPermissions(BlobContainerSasPermissions.Write | BlobContainerSasPermissions.Read);
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
             UriBuilder sasUri = new UriBuilder(container.Uri);
             sasUri.Query = sas;
@@ -772,7 +790,7 @@ namespace BlobStorage
         private static Uri GetContainerSasUri(BlobContainerClient container, StorageSharedKeyCredential storageSharedKeyCredential, string storedPolicyName)
         {
             var policy = new BlobSasBuilder
-            {              
+            {
                 BlobContainerName = container.Name,
                 Identifier = storedPolicyName
             };
@@ -1144,7 +1162,7 @@ namespace BlobStorage
             BlobClient blob = container.GetBlobClient(blobName);
 
             // For the purposes of the sample, check to see whether the blob exists.
-            Console.WriteLine("Blob {0} exists? {1}", blobName, await blob.ExistsAsync());
+            //Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
 
             try
             {
@@ -1162,7 +1180,7 @@ namespace BlobStorage
             }
 
             // Check again to see whether the blob exists.
-            Console.WriteLine("Blob {0} exists? {1}", blobName, await blob.ExistsAsync());
+            //Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
 
             return blob;
         }
@@ -1265,11 +1283,6 @@ namespace BlobStorage
 
                     Dictionary<string, string> metadata = new Dictionary<string, string>();
  
-                    // Set some metadata on the blob.
-                    metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
-                    metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
-
-                    await blob.SetMetadataAsync(metadata);
                     // Write the name of the blob to its contents as well.
                     msWrite = new MemoryStream(Encoding.UTF8.GetBytes("This is blob " + blobName + "."));
                     msWrite.Position = 0;
@@ -1278,6 +1291,12 @@ namespace BlobStorage
                         // Uploading the blob sets the properties and metadata on the new blob.
                         await blob.UploadAsync(msWrite);
                     }
+
+                    // Set some metadata on the blob.
+                    metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
+                    metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
+
+                    await blob.SetMetadataAsync(metadata);
                 }
             }
             catch (RequestFailedException e)
@@ -1348,12 +1367,8 @@ namespace BlobStorage
         private static async Task CreateBlockBlobSnapshotAsync(BlobContainerClient container)
         {
             // Create a new block blob in the container.
-            BlobClient baseBlob = container.GetBlobClient("sample-base-blob.txt");
+            BlockBlobClient baseBlob = container.GetBlockBlobClient("sample-base-blob.txt");
 
-            // Add blob metadata.
-            Dictionary<string, string> metadata = new Dictionary<string, string>();
-            metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
-            await baseBlob.SetMetadataAsync(metadata);
             try
             {
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(string.Format("Base blob: {0}", baseBlob.Uri.ToString()))))
@@ -1361,6 +1376,11 @@ namespace BlobStorage
                     // Upload the blob to create it, with its metadata.
                     await baseBlob.UploadAsync(stream);
                 }
+
+                // Add blob metadata.
+                Dictionary<string, string> metadata = new Dictionary<string, string>();
+                metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
+                await baseBlob.SetMetadataAsync(metadata);
 
                 // Sleep 5 seconds.
                 System.Threading.Thread.Sleep(5000);
@@ -1387,38 +1407,40 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CopyBlockBlobAsync(BlobContainerClient container)
         {
-            BlobClient sourceBlob = null;
-            BlobClient destBlob = null;
+            BlockBlobClient sourceBlob = null;
+            BlockBlobClient destBlob = null;
             string leaseId = null;
 
             try
             {
+                string blockblobname = container.GetBlobs().Where(blobs => blobs.Properties.BlobType == BlobType.Block)
+                    .Select(blobs => blobs.Name).FirstOrDefault();
                 // Get a block blob from the container to use as the source.
-                sourceBlob = container.GetBlobs().OfType<BlobClient>().FirstOrDefault();
+                sourceBlob = container.GetBlockBlobClient(blockblobname);
 
                 // Lease the source blob for the copy operation to prevent another client from modifying it.
                 // Specifying null for the lease interval creates an infinite lease.
                 var leaseClient = sourceBlob.GetBlobLeaseClient(null);
-                var blobLease = await leaseClient.AcquireAsync(new TimeSpan(0));
+                var blobLease = await leaseClient.AcquireAsync(TimeSpan.FromSeconds(15));
                 leaseId = blobLease.Value.LeaseId;
                 // Get a reference to a destination blob (in this case, a new blob).
-                destBlob = container.GetBlobClient("copy of " + sourceBlob.Name);
+                destBlob = container.GetBlockBlobClient("copy of " + sourceBlob.Name);
 
                 // Ensure that the source blob exists.
-                if (await sourceBlob.ExistsAsync())
-                {
-                    // Get the ID of the copy operation.
-                    CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
+                //if (sourceBlob.ExistsAsync().GetAwaiter().GetResult().Value)
+                //{
+                //    // Get the ID of the copy operation.
+                //    CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
 
-                    // Fetch the destination blob's properties before checking the copy state.
-                    var properties = destBlob.GetProperties().Value;
+                //    // Fetch the destination blob's properties before checking the copy state.
+                //    var properties = destBlob.GetProperties().Value;
 
-                    Console.WriteLine("Status of copy operation: {0}", properties.CopyStatus);
-                    Console.WriteLine("Copy Status Description : {0}", properties.CopyStatusDescription);
-                    Console.WriteLine("Copy Progress: {0}", properties.CopyProgress);
-                    Console.WriteLine();
-                    await copyFromUriOperation.WaitForCompletionAsync();
-                }
+                //    Console.WriteLine("Status of copy operation: {0}", properties.CopyStatus);
+                //    Console.WriteLine("Copy Status Description : {0}", properties.CopyStatusDescription);
+                //    Console.WriteLine("Copy Progress: {0}", properties.CopyProgress);
+                //    Console.WriteLine();
+                //    await copyFromUriOperation.WaitForCompletionAsync();
+                //}
             }
             catch (RequestFailedException e)
             {
@@ -1477,7 +1499,7 @@ namespace BlobStorage
                 // Lease the source blob for the copy operation to prevent another client from modifying it.
                 // Specifying null for the lease interval creates an infinite lease.
                 var leaseClient = sourceBlob.GetBlobLeaseClient(null);
-                var blobLease = await leaseClient.AcquireAsync(new TimeSpan(0));
+                var blobLease = await leaseClient.AcquireAsync(TimeSpan.FromSeconds(15));
                 leaseId = blobLease.Value.LeaseId;
 
                 // Get the ID of the copy operation.
@@ -1677,9 +1699,9 @@ namespace BlobStorage
                 ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
                 BlobName = blobName
             };
-            policy.SetPermissions(BlobSasPermissions.All);
+            policy.SetPermissions(BlobSasPermissions.Write | BlobSasPermissions.Delete | BlobSasPermissions.Read);
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
-            UriBuilder sasUri = new UriBuilder(container.Uri);
+            UriBuilder sasUri = new UriBuilder(container.GetBlobClient(blobName).Uri);
             sasUri.Query = sas;
             //Return the URI string for the container, including the SAS token.
             return sasUri.Uri;
@@ -1696,7 +1718,7 @@ namespace BlobStorage
             };
 
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
-            UriBuilder sasUri = new UriBuilder(container.Uri);
+            UriBuilder sasUri = new UriBuilder(container.GetBlobClient(blobName).Uri);
             sasUri.Query = sas;
             //Return the URI string for the container, including the SAS token.
             return sasUri.Uri;
@@ -1885,16 +1907,18 @@ namespace BlobStorage
             // Add CORS rule
             Console.WriteLine("Add CORS rule");
 
-            BlobCorsRule corsRule = new BlobCorsRule
-            {
-                AllowedHeaders = "*",
-                AllowedMethods = "Get",
-                AllowedOrigins = "*",
-                ExposedHeaders = "*",
-                MaxAgeInSeconds = 3600
-            };
-
-            serviceProperties.Value.Cors.Add(corsRule);
+            serviceProperties.Value.Cors =
+                new[]
+                {
+                    new BlobCorsRule
+                    {
+                        MaxAgeInSeconds = 3600,
+                        AllowedHeaders = "*",
+                        AllowedMethods = "GET",
+                        AllowedOrigins = "*",
+                        ExposedHeaders = "*"
+                    }
+                };
             await blobServiceClient.SetPropertiesAsync(serviceProperties);
             Console.WriteLine();
         }
