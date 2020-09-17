@@ -77,13 +77,16 @@ namespace BlobStorage
             BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
             try
             {
-                // The call below will fail if the sample is configured to use the storage emulator in the connection string, but 
-                // the emulator is not running.
+ 
+                // The call below will fail if the sample is configured to use the azurite in the connection string, but 
+                // the azurite is not running.
                 await container.CreateIfNotExistsAsync();
             }
-            catch (Exception)
+            
+            catch (Exception e)
             {
-                Console.WriteLine("If you are running with the default connection string, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
+                Console.WriteLine(e.Message);
+                Console.WriteLine("If you are running with the default connection string, please make sure you have started the azurite. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
                 Console.ReadLine();
                 throw;
             }
@@ -146,7 +149,7 @@ namespace BlobStorage
             const string ImageToUpload = "HelloWorld.png";
             string containerName = ContainerPrefix + Guid.NewGuid();
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
-            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("AzureStorageEmulatorAccountKey"));
+            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("StorageAccountKey"));
             // Get an account SAS token.
             SasQueryParameters sasToken = GetAccountSASToken(storageSharedKeyCredential);
 
@@ -174,7 +177,7 @@ namespace BlobStorage
             catch (RequestFailedException e)
             {
                 Console.WriteLine(e.ToString());
-                Console.WriteLine("If you are running with the default configuration, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
+                Console.WriteLine("If you are running with the default configuration, please make sure you have started the Azurite. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
                 Console.ReadLine();
                 throw;
             }
@@ -313,7 +316,6 @@ namespace BlobStorage
             // Permissions: Read, Write, List, Create, Delete
             // ResourceType: Container
             // Expires in 24 hours
-            // Protocols: HTTPS or HTTP (note that the storage emulator does not support HTTPS)
             AccountSasBuilder accountSasBuilder = new AccountSasBuilder
             {
                 // Allow access to blobs
@@ -326,7 +328,7 @@ namespace BlobStorage
                 ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
             };
 
-            accountSasBuilder.SetPermissions(AccountSasPermissions.Read | AccountSasPermissions.Write | AccountSasPermissions.Create | AccountSasPermissions.List | AccountSasPermissions.Delete);
+            accountSasBuilder.SetPermissions(AccountSasPermissions.All);
 
             var sasToken = accountSasBuilder.ToSasQueryParameters(sharedKeyCredential);
 

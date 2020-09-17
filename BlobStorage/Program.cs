@@ -34,24 +34,23 @@ namespace BlobStorage
     /// - Blob Service REST API - http://msdn.microsoft.com/en-us/library/dd135733.aspx
     /// - Blob Service C# API - http://go.microsoft.com/fwlink/?LinkID=398944
     /// - Delegating Access with Shared Access Signatures - http://azure.microsoft.com/en-us/documentation/articles/storage-dotnet-shared-access-signature-part-1/
-    /// - Storage Emulator - http://msdn.microsoft.com/en-us/library/azure/hh403989.aspx
+    /// - Azurite - https://github.com/Azure/Azurite
     /// - Configure a Connection String - https://azure.microsoft.com/documentation/articles/storage-configure-connection-string/
     /// - Asynchronous Programming with Async and Await  - http://msdn.microsoft.com/en-us/library/hh191443.aspx
     /// </summary>
     public class Program
     {
         // *************************************************************************************************************************
-        // Instructions: This sample can be run using either the Azure Storage Emulator that installs as part of this SDK - or by
+        // Instructions: This sample can be run using either the Azurite that installs as part of this SDK - or by
         // updating the App.Config file with your AccountName and Key.
         //
-        // To run the sample using the Storage Emulator (default option):
-        //      1. Start the Azure Storage Emulator (once only) by pressing the Start button or the Windows key and searching for it
-        //         by typing "Azure Storage Emulator". Select it from the list of applications to start it.
+        // To run the sample using the Azurite (default option):
+        //      1. run command: azurite --oauth basic --cert certname.pem --key certname-key.pem to start Azurite
         //      2. Set breakpoints and run the project using F10. 
         // 
         // To run the sample using the Storage Service:
-        //      1. Open the app.config file and comment out the connection string for the emulator (UseDevelopmentStorage=True) and
-        //         uncomment the connection string for the storage service (AccountName=[]...)
+        //      1. Open the app.config file and comment out the connection string and account for the Azurite and
+        //         uncomment the connection string and account for the storage service (AccountName=[]...)
         //      2. Create a Storage Account through the Azure Portal and provide your [AccountName] and [AccountKey] in 
         //         the App.Config file. See http://go.microsoft.com/fwlink/?LinkId=325277 for more information.
         //      3. Set breakpoints and run the project using F10. 
@@ -66,8 +65,8 @@ namespace BlobStorage
             Console.WriteLine("Azure Blob Storage - Getting Started Samples\n");
             GettingStarted.CallBlobGettingStartedSamples();
 
-           // Console.WriteLine("Azure Blob Storage - Advanced Samples\n ");
-            //Advanced.CallBlobAdvancedSamples().Wait();
+            Console.WriteLine("Azure Blob Storage - Advanced Samples\n ");
+            Advanced.CallBlobAdvancedSamples().Wait();
 
             Console.WriteLine();
             Console.WriteLine("Press any key to exit.");

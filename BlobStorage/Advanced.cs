@@ -245,7 +245,7 @@ namespace BlobStorage
 
             string sharedAccessPolicyName = "sample-policy-" + DateTime.Now.Ticks.ToString();
 
-            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("AzureStorageEmulatorAccountKey"));
+            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("StorageAccountKey"));
             
             // Create the container if it does not already exist.
             await container.CreateIfNotExistsAsync();
@@ -451,9 +451,9 @@ namespace BlobStorage
             }
             catch (RequestFailedException e)
             {
-                // Ensure that the storage emulator is running if using emulator connection string.
+                // Ensure that the azurite is running if using azurite connection string.
                 Console.WriteLine(e.Message);
-                Console.WriteLine("If you are running with the default connection string, please make sure you have started the storage emulator. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
+                Console.WriteLine("If you are running with the default connection string, please make sure you have started the Azurite. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
                 Console.ReadLine();
                 throw;
             }
@@ -766,14 +766,12 @@ namespace BlobStorage
         {
             var policy = new BlobSasBuilder
             {
-                Protocol = SasProtocol.HttpsAndHttp,
                 BlobContainerName = container.Name,
                 Resource = "c",
                 StartsOn = DateTimeOffset.UtcNow,
                 ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
-                IPRange = new SasIPRange(IPAddress.None, IPAddress.None)
             };
-            policy.SetPermissions(BlobContainerSasPermissions.Write | BlobContainerSasPermissions.Read);
+            policy.SetPermissions(BlobContainerSasPermissions.All);
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
             UriBuilder sasUri = new UriBuilder(container.Uri);
             sasUri.Query = sas;
@@ -1128,11 +1126,14 @@ namespace BlobStorage
 
                 foreach (var blobItem in resultSegment)
                 {
-                    Console.WriteLine("************************************");
-                    Console.WriteLine(blobItem.Blob.Name);
-                    BlobClient blob = container.GetBlobClient(blobItem.Blob.Name);
-                    // Write out blob properties and metadata.
-                    PrintBlobPropertiesAndMetadata(container, blob);
+                    if (blobItem.IsBlob)
+                    {
+                        Console.WriteLine("************************************");
+                        Console.WriteLine(blobItem.Blob.Name);
+                        BlobClient blob = container.GetBlobClient(blobItem.Blob.Name);
+                        // Write out blob properties and metadata.
+                        PrintBlobPropertiesAndMetadata(container, blob);
+                    }
                    
                 }
                 Console.WriteLine();
@@ -1162,7 +1163,7 @@ namespace BlobStorage
             BlobClient blob = container.GetBlobClient(blobName);
 
             // For the purposes of the sample, check to see whether the blob exists.
-            //Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
+            Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
 
             try
             {
@@ -1180,7 +1181,7 @@ namespace BlobStorage
             }
 
             // Check again to see whether the blob exists.
-            //Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
+            Console.WriteLine("Blob {0} exists? {1}", blobName, blob.ExistsAsync().GetAwaiter().GetResult().Value);
 
             return blob;
         }
@@ -1427,20 +1428,20 @@ namespace BlobStorage
                 destBlob = container.GetBlockBlobClient("copy of " + sourceBlob.Name);
 
                 // Ensure that the source blob exists.
-                //if (sourceBlob.ExistsAsync().GetAwaiter().GetResult().Value)
-                //{
-                //    // Get the ID of the copy operation.
-                //    CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
+                if (sourceBlob.ExistsAsync().GetAwaiter().GetResult().Value)
+                {
+                    // Get the ID of the copy operation.
+                    CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
 
-                //    // Fetch the destination blob's properties before checking the copy state.
-                //    var properties = destBlob.GetProperties().Value;
+                    // Fetch the destination blob's properties before checking the copy state.
+                    var properties = destBlob.GetProperties().Value;
 
-                //    Console.WriteLine("Status of copy operation: {0}", properties.CopyStatus);
-                //    Console.WriteLine("Copy Status Description : {0}", properties.CopyStatusDescription);
-                //    Console.WriteLine("Copy Progress: {0}", properties.CopyProgress);
-                //    Console.WriteLine();
-                //    await copyFromUriOperation.WaitForCompletionAsync();
-                //}
+                    Console.WriteLine("Status of copy operation: {0}", properties.CopyStatus);
+                    Console.WriteLine("Copy Status Description : {0}", properties.CopyStatusDescription);
+                    Console.WriteLine("Copy Progress: {0}", properties.CopyProgress);
+                    Console.WriteLine();
+                    await copyFromUriOperation.WaitForCompletionAsync();
+                }
             }
             catch (RequestFailedException e)
             {
@@ -1699,7 +1700,7 @@ namespace BlobStorage
                 ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
                 BlobName = blobName
             };
-            policy.SetPermissions(BlobSasPermissions.Write | BlobSasPermissions.Delete | BlobSasPermissions.Read);
+            policy.SetPermissions(BlobSasPermissions.All);
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
             UriBuilder sasUri = new UriBuilder(container.GetBlobClient(blobName).Uri);
             sasUri.Query = sas;
