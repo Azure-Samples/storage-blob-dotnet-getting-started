@@ -111,7 +111,7 @@ namespace BlobStorage
                 // The sample code deletes any containers it created if it runs completely. However, if you need to delete containers 
                 // created by previous sessions (for example, if you interrupted the running code before it completed), 
                 // you can uncomment and run the following line to delete them.
-                //await DeleteContainersWithPrefix(blobClient, ContainerPrefix);
+                //await DeleteContainersWithPrefixAsync(blobClient, ContainerPrefix);
 
                 // Return the service properties/storage analytics settings to their original values.
                 await blobClient.SetServicePropertiesAsync(userServiceProperties);
