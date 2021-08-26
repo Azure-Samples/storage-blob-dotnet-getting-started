@@ -17,14 +17,10 @@
 namespace BlobStorage
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
-    using System.ComponentModel;
     using System.IO;
     using System.Linq;
-    using System.Net;
     using System.Security.Cryptography;
-    using System.ServiceModel.Channels;
     using System.Text;
     using System.Threading.Tasks;
     using Azure;
@@ -119,14 +115,14 @@ namespace BlobStorage
                 await blobServiceClient.SetPropertiesAsync(userServiceProperties);
             }
         }
-        
+
         /// <summary>
         /// Calls samples that demonstrate how to use the Blob service client (BlobServiceClient) object.
         /// </summary>
         /// <param name="blobServiceClient">The Blob service client.</param>
         /// <returns>A Task object.</returns>
         private static async Task CallblobServiceClientSamples(BlobServiceClient blobServiceClient)
-        {          
+        {
             // Print out properties for the service client.
             PrintServiceClientProperties(blobServiceClient);
 
@@ -230,7 +226,7 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CallSasSamples(BlobContainerClient container)
         {
-           
+
             const string BlobName1 = "sasBlob1.txt";
             const string BlobContent1 = "Blob created with an ad-hoc SAS granting write permissions on the container.";
 
@@ -246,7 +242,7 @@ namespace BlobStorage
             string sharedAccessPolicyName = "sample-policy-" + DateTime.Now.Ticks.ToString();
 
             StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("StorageAccountKey"));
-            
+
             // Create the container if it does not already exist.
             await container.CreateIfNotExistsAsync();
 
@@ -258,7 +254,7 @@ namespace BlobStorage
             IEnumerable<BlobSignedIdentifier> blobSignedIdentifiers = new List<BlobSignedIdentifier>() {
             blobSignedIdentifier
             };
-           
+
             container.SetAccessPolicy(permissions: blobSignedIdentifiers);
             // Generate an  SAS URI for the container with write and list permissions.
             Uri ContainerSAS = GetContainerSasUri(container, storageSharedKeyCredential);
@@ -275,14 +271,14 @@ namespace BlobStorage
 
             // Generate an ad-hoc SAS URI for a blob within the container. The ad-hoc SAS has create, write, and read permissions.
             Uri adHocBlobSAS = GetBlobSasUri(container, BlobName3, storageSharedKeyCredential);
-            
+
             // Test the SAS. The create, write, and read operations should succeed, and 
             // the delete operation should fail with error code 403 (Forbidden).
             await TestBlobSASAsync(adHocBlobSAS, BlobContent3);
 
             // Generate a SAS URI for a blob within the container, using the stored access policy to set constraints on the SAS.
-            Uri sharedPolicyBlobSAS = GetBlobSasUri(container, BlobName4,storageSharedKeyCredential ,sharedAccessPolicyName);
-            
+            Uri sharedPolicyBlobSAS = GetBlobSasUri(container, BlobName4, storageSharedKeyCredential, sharedAccessPolicyName);
+
             // Test the SAS. The create, write, read, and delete operations should all succeed.
             await TestBlobSASAsync(sharedPolicyBlobSAS, BlobContent4);
         }
@@ -333,7 +329,7 @@ namespace BlobStorage
                 serviceProperties.DefaultServiceVersion = "2018-11-09";
 
                 // Set the service properties.
-                await blobServiceClient.SetPropertiesAsync(serviceProperties);            
+                await blobServiceClient.SetPropertiesAsync(serviceProperties);
             }
             catch (RequestFailedException e)
             {
@@ -386,24 +382,24 @@ namespace BlobStorage
 
             try
             {
-                    // List containers beginning with the specified prefix, returning segments of 5 results each. 
-                    // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
-                    // Requesting the container's metadata as part of the listing operation populates the metadata, 
-                    // so it's not necessary to call FetchAttributes() to read the metadata.
-                    var Pageable = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
-                    
-                    // Enumerate the containers returned.
-                    await foreach (var container in Pageable)
-                    {
-                        Console.WriteLine("\tContainer:" + container.Name);
+                // List containers beginning with the specified prefix, returning segments of 5 results each. 
+                // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
+                // Requesting the container's metadata as part of the listing operation populates the metadata, 
+                // so it's not necessary to call FetchAttributes() to read the metadata.
+                var Pageable = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
 
-                        // Write the container's metadata keys and values.
-                        foreach (var metadataItem in container.Properties.Metadata)
-                        {
-                            Console.WriteLine("\t\tMetadata key: " + metadataItem.Key);
-                            Console.WriteLine("\t\tMetadata value: " + metadataItem.Value);
-                        }
+                // Enumerate the containers returned.
+                await foreach (var container in Pageable)
+                {
+                    Console.WriteLine("\tContainer:" + container.Name);
+
+                    // Write the container's metadata keys and values.
+                    foreach (var metadataItem in container.Properties.Metadata)
+                    {
+                        Console.WriteLine("\t\tMetadata key: " + metadataItem.Key);
+                        Console.WriteLine("\t\tMetadata value: " + metadataItem.Value);
                     }
+                }
                 Console.WriteLine();
             }
             catch (RequestFailedException e)
@@ -509,7 +505,7 @@ namespace BlobStorage
                 throw;
             }
         }
-        
+
         /// <summary>
         /// Reads the container's properties.
         /// </summary>
@@ -693,7 +689,7 @@ namespace BlobStorage
                     if (container.Properties.LeaseState == LeaseState.Leased || container.Properties.LeaseState == LeaseState.Breaking)
                     {
                         var leaseClient = containerClient.GetBlobLeaseClient();
-                         await leaseClient.BreakAsync(new TimeSpan(0));
+                        await leaseClient.BreakAsync(new TimeSpan(0));
                     }
 
                     Console.WriteLine();
@@ -996,7 +992,7 @@ namespace BlobStorage
                     break;
             }
 
-           // Console.WriteLine("\t StreamMinimumReadSizeInBytes: {0}", blob.StreamMinimumReadSizeInBytes);
+            // Console.WriteLine("\t StreamMinimumReadSizeInBytes: {0}", blob.StreamMinimumReadSizeInBytes);
             Console.WriteLine();
 
             // Enumerate the blob's metadata.
@@ -1134,7 +1130,7 @@ namespace BlobStorage
                         // Write out blob properties and metadata.
                         PrintBlobPropertiesAndMetadata(container, blob);
                     }
-                   
+
                 }
                 Console.WriteLine();
             }
@@ -1283,7 +1279,7 @@ namespace BlobStorage
                     blob = container.GetBlobClient(blobName);
 
                     Dictionary<string, string> metadata = new Dictionary<string, string>();
- 
+
                     // Write the name of the blob to its contents as well.
                     msWrite = new MemoryStream(Encoding.UTF8.GetBytes("This is blob " + blobName + "."));
                     msWrite.Position = 0;
@@ -1572,7 +1568,7 @@ namespace BlobStorage
 
             // Get a reference to a new block blob.
             BlockBlobClient blob = container.GetBlockBlobClient("sample-blob-" + Guid.NewGuid());
-          
+
             // Specify the block size as 256 KB.
             int blockSize = 256 * 1024;
 
@@ -1630,7 +1626,7 @@ namespace BlobStorage
                         byte[] blockHash = md5.ComputeHash(bytesToWrite);
                         string md5Hash = Convert.ToBase64String(blockHash, 0, 16);
                         // Upload the block with the hash.
-                        await blob.StageBlockAsync(blockId, new MemoryStream(bytesToWrite),blockHash);    
+                        await blob.StageBlockAsync(blockId, new MemoryStream(bytesToWrite), blockHash);
                         // Increment and decrement the counters.
                         bytesRead += bytesToRead;
                         bytesLeft -= bytesToRead;
@@ -1662,7 +1658,7 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task ReadBlockListAsync(BlockBlobClient blob)
         {
-            var blockList =await blob.GetBlockListAsync();
+            var blockList = await blob.GetBlockListAsync();
             // Get the blob's block list.
             foreach (var listBlockItem in blockList.Value.CommittedBlocks)
             {
@@ -1675,9 +1671,9 @@ namespace BlobStorage
             {
                 Console.WriteLine(
                                       "Block {0} is uncommitted. Block length = {1}",
-                                      listBlockItem.Name, 
+                                      listBlockItem.Name,
                                       listBlockItem.Size);
-                
+
             }
 
             Console.WriteLine();
@@ -1690,7 +1686,7 @@ namespace BlobStorage
         /// <param name="blobName">A string containing the name of the blob.</param>
         /// <param name="policyName">A string containing the name of the stored access policy. If null, an ad-hoc SAS is created.</param>
         /// <returns>A string containing the URI for the blob, with the SAS token appended.</returns>
-        private static Uri GetBlobSasUri(BlobContainerClient container, string blobName,StorageSharedKeyCredential storageSharedKeyCredential)
+        private static Uri GetBlobSasUri(BlobContainerClient container, string blobName, StorageSharedKeyCredential storageSharedKeyCredential)
         {
             var policy = new BlobSasBuilder
             {
@@ -1714,7 +1710,7 @@ namespace BlobStorage
             var policy = new BlobSasBuilder
             {
                 BlobContainerName = container.Name,
-                Identifier=sharedAccessPolicyName,
+                Identifier = sharedAccessPolicyName,
                 BlobName = blobName
             };
 
@@ -1904,7 +1900,7 @@ namespace BlobStorage
             Console.WriteLine("Get CORS rules");
 
             Response<BlobServiceProperties> serviceProperties = await blobServiceClient.GetPropertiesAsync();
-            
+
             // Add CORS rule
             Console.WriteLine("Add CORS rule");
 
