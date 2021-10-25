@@ -121,7 +121,7 @@ namespace BlobStorage
         /// </summary>
         /// <param name="blobServiceClient">The Blob service client.</param>
         /// <returns>A Task object.</returns>
-        private static async Task CallblobServiceClientSamples(BlobServiceClient blobServiceClient)
+        private static async Task CallBlobServiceClientSamples(BlobServiceClient blobServiceClient)
         {
             // Print out properties for the service client.
             PrintServiceClientProperties(blobServiceClient);
