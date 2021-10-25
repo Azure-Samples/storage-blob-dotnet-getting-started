@@ -385,7 +385,7 @@ namespace BlobStorage
                 // List containers beginning with the specified prefix, returning segments of 5 results each. 
                 // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
                 // Requesting the container's metadata as part of the listing operation populates the metadata, 
-                // so it's not necessary to call FetchAttributes() to read the metadata.
+                // so it's not necessary to call GetProperties() to read the metadata.
                 var containers = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
 
                 // Enumerate the containers returned.
