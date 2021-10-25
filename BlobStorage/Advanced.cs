@@ -668,7 +668,7 @@ namespace BlobStorage
             }
             catch (RequestFailedException e)
             {
-                if (e.Status == 412)
+                if (e.Status == 412 && e.ErrorCode == BlobErrorCode.LeaseIdMissing)
                 {
                     // Handle the error demonstrated for case 5 above and continue execution.
                     Console.WriteLine("The container is leased and cannot be deleted without specifying the lease ID.");
