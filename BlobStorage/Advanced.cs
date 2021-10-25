@@ -953,7 +953,7 @@ namespace BlobStorage
                 Console.WriteLine($"Snapshot Time: {builder.Snapshot}");
                 Console.WriteLine($"Snapshot URI: {blob.Uri}");
             }
-            var properties = blob.GetProperties().Value;
+            var properties = (await blob.GetPropertiesAsync()).Value;
             Console.WriteLine("\t LeaseState: {0}", properties.LeaseState);
             // If the blob has been leased, write out lease properties.
             if (properties.LeaseState != LeaseState.Available)
