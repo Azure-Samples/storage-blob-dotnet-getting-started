@@ -735,7 +735,7 @@ namespace BlobStorage
             Console.WriteLine("Delete all containers beginning with the specified prefix");
             try
             {
-                foreach (var container in blobServiceClient.GetBlobContainers(BlobContainerTraits.None, prefix: prefix))
+                foreach (var container in blobServiceClient.GetBlobContainers(prefix: prefix))
                 {
                     Console.WriteLine("\tContainer:" + container.Name);
                     await blobServiceClient.DeleteBlobContainerAsync(container.Name);
