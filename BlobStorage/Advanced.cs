@@ -386,7 +386,7 @@ namespace BlobStorage
                 // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
                 // Requesting the container's metadata as part of the listing operation populates the metadata, 
                 // so it's not necessary to call FetchAttributes() to read the metadata.
-                var Pageable = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
+                var containers = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
 
                 // Enumerate the containers returned.
                 await foreach (var container in Pageable)
