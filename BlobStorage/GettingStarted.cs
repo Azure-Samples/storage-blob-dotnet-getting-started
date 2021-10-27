@@ -22,9 +22,8 @@ namespace BlobStorage
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Blobs.Specialized;
     using Azure.Storage.Sas;
-    using Microsoft.Azure;
     using System;
-    using System.Data.SqlTypes;
+    using System.Configuration;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
@@ -149,7 +148,7 @@ namespace BlobStorage
             const string ImageToUpload = "HelloWorld.png";
             string containerName = ContainerPrefix + Guid.NewGuid();
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
-            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, CloudConfigurationManager.GetSetting("StorageAccountKey"));
+            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
             // Get an account SAS token.
             SasQueryParameters sasToken = GetAccountSASToken(storageSharedKeyCredential);
 

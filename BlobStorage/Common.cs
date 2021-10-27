@@ -18,8 +18,8 @@
 namespace BlobStorage
 {
     using System;
+    using System.Configuration;
     using Azure.Storage.Blobs;
-    using Microsoft.Azure;
 
     /// <summary>
     /// Contains public method for validating the storage connection string.
@@ -38,7 +38,7 @@ namespace BlobStorage
 
             try
             {
-                blobServiceClient = new BlobServiceClient(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+                blobServiceClient = new BlobServiceClient(ConfigurationManager.AppSettings.Get("StorageConnectionString"));
             }
             catch (FormatException)
             {
