@@ -787,20 +787,18 @@ namespace BlobStorage
                 Console.WriteLine("List operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("List operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
+
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("List operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
 
             // Read operation: Read the contents of the blob we created above.
@@ -813,21 +811,19 @@ namespace BlobStorage
                 Console.WriteLine("Read operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Read operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Read operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
+
 
             Console.WriteLine();
 
@@ -838,21 +834,19 @@ namespace BlobStorage
                 Console.WriteLine("Delete operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
+
 
             Console.WriteLine();
         }
@@ -1155,17 +1149,17 @@ namespace BlobStorage
                     blob = container.GetBlobClient(blobName);
 
                     Dictionary<string, string> metadata = new Dictionary<string, string>();
-                    
+
                     // Set some metadata on the blob.
                     metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
                     metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
-                    
+
                     await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"));
                     await blob.SetMetadataAsync(metadata);
                 }
             }
             catch (RequestFailedException e)
-            { 
+            {
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
                 throw;
@@ -1402,7 +1396,7 @@ namespace BlobStorage
         {
             // Create an array of random bytes, of the specified size.
             byte[] randomBytes = new byte[5 * 1024 * 1024];
-            
+
             // Specify the block size as 256 KB.
             int blockSize = 256 * 1024;
 
@@ -1561,20 +1555,17 @@ namespace BlobStorage
                 Console.WriteLine("Create operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Create operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Create operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
 
             // Write operation: Add metadata to the blob
@@ -1589,20 +1580,17 @@ namespace BlobStorage
                 Console.WriteLine("Write operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Write operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Write operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
 
             // Read operation: Read the contents of the blob.
@@ -1629,20 +1617,17 @@ namespace BlobStorage
                 Console.WriteLine("Read operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Read operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Read operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
 
             // Delete operation: Delete the blob.
@@ -1652,22 +1637,20 @@ namespace BlobStorage
                 Console.WriteLine("Delete operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Delete operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
         }
+
 
         /// <summary>
         /// Uploads an array of bytes to a new blob.
