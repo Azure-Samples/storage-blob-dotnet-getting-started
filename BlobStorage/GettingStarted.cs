@@ -76,7 +76,6 @@ namespace BlobStorage
             BlobContainerClient container = blobServiceClient.GetBlobContainerClient(containerName);
             try
             {
- 
                 // The call below will fail if the sample is configured to use the azurite in the connection string, but 
                 // the azurite is not running.
                 await container.CreateIfNotExistsAsync();
@@ -98,17 +97,16 @@ namespace BlobStorage
 
             // Upload a BlockBlob to the newly created container
             Console.WriteLine("2. Uploading BlockBlob");
-            BlockBlobClient blockBlob = container.GetBlockBlobClient(ImageToUpload);
-
-
-
+            BlobClient blobClient = container.GetBlobClient(ImageToUpload);
+            
             // Set the blob's content type so that the browser knows to treat it as an image.
-            await blockBlob.UploadAsync(File.OpenRead(ImageToUpload));
+            await blobClient.UploadAsync(File.OpenRead(ImageToUpload));
 
             // List all the blobs in the container.
             /// Note that the ListBlobs method is called synchronously, for the purposes of the sample. However, in a real-world
             /// application using the async/await pattern, best practices recommend using asynchronous methods consistently.
             Console.WriteLine("3. List Blobs in Container");
+
             foreach (var blob in container.GetBlobs())
             {
                 // Blob type will be BlobClient, CloudPageBlob or BlobClientDirectory
@@ -117,20 +115,17 @@ namespace BlobStorage
             }
 
             // Download a blob to your file system
-            Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-            using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
-            {
-                await blockBlob.DownloadToAsync(file);
-            }
-
+            Console.WriteLine("4. Download Blob from {0}", blobClient.Uri.AbsoluteUri);
+            await blobClient.DownloadToAsync(string.Format("./CopyOf{0}", ImageToUpload));
+            
             // Create a read-only snapshot of the blob
             Console.WriteLine("5. Create a read-only snapshot of the blob");
-            var blockBlobSnapshot = await blockBlob.CreateSnapshotAsync();
+            var blockBlobSnapshot = await blobClient.CreateSnapshotAsync();
 
             // Clean up after the demo. This line is not strictly necessary as the container is deleted in the next call.
             // It is included for the purposes of the example. 
             Console.WriteLine("6. Delete block blob and all of its snapshots");
-            await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
+            await blobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
 
             // Note that deleting the container also deletes any blobs in the container, and their snapshots.
             // In the case of the sample, we delete the blob and its snapshots, and then the container,
@@ -191,8 +186,8 @@ namespace BlobStorage
 
                 // Upload a BlockBlob to the newly created container
                 Console.WriteLine("2. Uploading BlockBlob");
-                BlockBlobClient blockBlob = container.GetBlockBlobClient(ImageToUpload);
-                await blockBlob.UploadAsync(File.OpenRead(ImageToUpload));
+                BlobClient blobClient = container.GetBlobClient(ImageToUpload);
+                await blobClient.UploadAsync(File.OpenRead(ImageToUpload));
 
                 // List all the blobs in the container 
                 Console.WriteLine("3. List Blobs in Container");           
@@ -205,19 +200,16 @@ namespace BlobStorage
                 }
 
                 // Download a blob to your file system
-                Console.WriteLine("4. Download Blob from {0}", blockBlob.Uri.AbsoluteUri);
-                using (FileStream file = File.OpenWrite(string.Format("./CopyOf{0}", ImageToUpload)))
-                {
-                    await blockBlob.DownloadToAsync(file);
-                }
-
+                Console.WriteLine("4. Download Blob from {0}", blobClient.Uri.AbsoluteUri);
+                await blobClient.DownloadToAsync(string.Format("./CopyOf{0}", ImageToUpload));
+                
                 // Create a read-only snapshot of the blob
                 Console.WriteLine("5. Create a read-only snapshot of the blob");
-                var blockBlobSnapshot = await blockBlob.CreateSnapshotAsync();
+                var blockBlobSnapshot = await blobClient.CreateSnapshotAsync();
 
                 // Delete the blob and its snapshots.
                 Console.WriteLine("6. Delete block Blob and all of its snapshots");
-                await blockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
+                await blobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
             }
             catch (RequestFailedException e)
             {

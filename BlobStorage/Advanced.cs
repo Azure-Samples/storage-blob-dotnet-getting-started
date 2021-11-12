@@ -547,8 +547,8 @@ namespace BlobStorage
                 await PrintContainerLeasePropertiesAsync(container1);
 
                 // Acquire the lease.
-                var leaseContainer1 = container1.GetBlobLeaseClient();
-                var containerLease1 = await leaseContainer1.AcquireAsync(leaseDuration);
+                var leaseclient1 = container1.GetBlobLeaseClient();
+                var containerLease1 = await leaseclient1.AcquireAsync(leaseDuration);
                 leaseId = containerLease1.Value.LeaseId;
                 // Get container properties again to see that the container is leased.
                 await PrintContainerLeasePropertiesAsync(container1);
@@ -566,12 +566,12 @@ namespace BlobStorage
                 await container2.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseContainer2 = container2.GetBlobLeaseClient();
-                var containerLease2 = await leaseContainer2.AcquireAsync(leaseDuration);
+                var leaseClient2 = container2.GetBlobLeaseClient();
+                var containerLease2 = await leaseClient2.AcquireAsync(leaseDuration);
                 leaseId = containerLease2.Value.LeaseId;
 
                 // Break the lease. Passing null indicates that the break interval will be the remainder of the current lease.
-                await leaseContainer2.BreakAsync(null);
+                await leaseClient2.BreakAsync(null);
 
                 // Get container properties to see the breaking lease.
                 // The lease break interval has not yet elapsed.
@@ -591,12 +591,12 @@ namespace BlobStorage
                 await container3.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseContainer3 = container3.GetBlobLeaseClient();
-                var containerLease3 = await leaseContainer3.AcquireAsync(leaseDuration);
+                var leaseClient3 = container3.GetBlobLeaseClient();
+                var containerLease3 = await leaseClient3.AcquireAsync(leaseDuration);
                 leaseId = containerLease3.Value.LeaseId;
 
                 // Break the lease. Passing 0 breaks the lease immediately.
-                var result = await leaseContainer3.BreakAsync(new TimeSpan(0));
+                var result = await leaseClient3.BreakAsync(new TimeSpan(0));
 
                 // Get container properties to see that the lease is broken.
                 await PrintContainerLeasePropertiesAsync(container3);
@@ -613,8 +613,8 @@ namespace BlobStorage
                 await container4.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseContainer4 = container4.GetBlobLeaseClient();
-                var containerLease4 = await leaseContainer4.AcquireAsync(leaseDuration);
+                var leaseClient4 = container4.GetBlobLeaseClient();
+                var containerLease4 = await leaseClient4.AcquireAsync(leaseDuration);
                 leaseId = containerLease4.Value.LeaseId;
 
                 // Sleep for 16 seconds to allow lease to expire.
@@ -635,8 +635,8 @@ namespace BlobStorage
                 await container5.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseContainer5 = container5.GetBlobLeaseClient();
-                var containerLease5 = await leaseContainer5.AcquireAsync(leaseDuration);
+                var leaseClient5 = container5.GetBlobLeaseClient();
+                var containerLease5 = await leaseClient5.AcquireAsync(leaseDuration);
                 leaseId = containerLease5.Value.LeaseId;
 
                 // Get container properties to see that the container has been leased.
@@ -647,19 +647,16 @@ namespace BlobStorage
                 // Note that in a real-world scenario, it would most likely be another client attempting to delete the container.
                 await container5.DeleteAsync();
             }
+            catch (RequestFailedException e) when (e.Status == 412 && e.ErrorCode == BlobErrorCode.LeaseIdMissing)
+            {
+                // Handle the error demonstrated for case 5 above and continue execution.
+                Console.WriteLine("The container is leased and cannot be deleted without specifying the lease ID.");
+                Console.WriteLine("More information: {0}", e.Message);
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 412 && e.ErrorCode == BlobErrorCode.LeaseIdMissing)
-                {
-                    // Handle the error demonstrated for case 5 above and continue execution.
-                    Console.WriteLine("The container is leased and cannot be deleted without specifying the lease ID.");
-                    Console.WriteLine("More information: {0}", e.Message);
-                }
-                else
-                {
-                    // Output error information for any other errors, but continue execution.
-                    Console.WriteLine(e.Message);
-                }
+                // Output error information for any other errors, but continue execution.
+                Console.WriteLine(e.Message);
             }
             finally
             {
@@ -719,7 +716,13 @@ namespace BlobStorage
             {
                 foreach (var container in blobServiceClient.GetBlobContainers(prefix: prefix))
                 {
+                    var containerClient = blobServiceClient.GetBlobContainerClient(container.Name);
                     Console.WriteLine("\tContainer:" + container.Name);
+                    if (container.Properties.LeaseState == LeaseState.Leased)
+                    {
+                        var leaseClient = containerClient.GetBlobLeaseClient();
+                        await leaseClient.BreakAsync(null);
+                    }
                     await blobServiceClient.DeleteBlobContainerAsync(container.Name);
                 }
 
@@ -761,22 +764,18 @@ namespace BlobStorage
                 Console.WriteLine("Write operation succeeded for SAS {0}", sasUri);
                 Console.WriteLine();
             }
+            catch (RequestFailedException e) when (e.Status == 403)
+            {
+                Console.WriteLine("Write operation failed for SAS {0}", sasUri);
+                Console.WriteLine("Additional error information: " + e.Message);
+                Console.WriteLine();
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 403)
-                {
-                    Console.WriteLine("Write operation failed for SAS {0}", sasUri);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
-
             // List operation: List the blobs in the container.
             try
             {
@@ -807,8 +806,8 @@ namespace BlobStorage
             // Read operation: Read the contents of the blob we created above.
             try
             {
-                int dowmloadLength = (await blob.DownloadContentAsync()).Value.Content.ToString().Length;
-                Console.WriteLine(dowmloadLength);
+                int downloadLength = (await blob.DownloadContentAsync()).Value.Content.ToString().Length;
+                Console.WriteLine(downloadLength);
 
                 Console.WriteLine();
                 Console.WriteLine("Read operation succeeded for SAS {0}", sasUri);
@@ -906,13 +905,10 @@ namespace BlobStorage
             switch (properties.BlobType)
             {
                 case BlobType.Append:
-                    AppendBlobClient appendBlob = container.GetAppendBlobClient(blob.Name);
-                    BlobProperties appendProperties = await appendBlob.GetPropertiesAsync();
-                    Console.WriteLine("\t AppendBlobCommittedBlockCount: {0}", appendProperties.BlobCommittedBlockCount);
+                    Console.WriteLine("\t AppendBlobCommittedBlockCount: {0}", properties.BlobCommittedBlockCount);
                     break;
                 case BlobType.Page:
-                    PageBlobClient pageBlob = container.GetPageBlobClient(blob.Name);
-                    Console.WriteLine("\t PageBlobSequenceNumber: {0}",(await pageBlob.GetPropertiesAsync()).Value.BlobSequenceNumber);
+                    Console.WriteLine("\t PageBlobSequenceNumber: {0}", properties.BlobSequenceNumber);
                     break;
                 default:
                     break;
@@ -934,7 +930,7 @@ namespace BlobStorage
         /// <summary>
         /// Reads the virtual directory's properties.
         /// </summary>
-        /// <param name="dir">A BlobClientDirectory object.</param>
+        /// <param name="dir">A BlobContainerClient object.</param>
         private static async IAsyncEnumerable<string> PrintVirtualDirectoryProperties(BlobContainerClient container, string root = "/")
         {
             Queue<string> remainingFolders = new Queue<string>();
@@ -948,7 +944,7 @@ namespace BlobStorage
                     {
                         yield return blob.Prefix;
                         remainingFolders.Enqueue(blob.Prefix);
-                     }                   
+                    }
                 }
             }
         }
@@ -982,7 +978,6 @@ namespace BlobStorage
                 {
                     foreach (BlobItem blobItem in page.Values)
                     {
-
                         Console.WriteLine("************************************");
                         Console.WriteLine(blobItem.Name);
 
@@ -1055,7 +1050,6 @@ namespace BlobStorage
                         // Write out blob properties and metadata.
                         await PrintBlobPropertiesAndMetadata(container, blob);
                     }
-
                 }
                 Console.WriteLine();
             }
@@ -1114,8 +1108,7 @@ namespace BlobStorage
         {
             try
             {
-                // Get a reference to a blob with a request to the server.
-                // If the blob does not exist, this call will fail with a 404 (Not Found).
+                // Get a reference to a blob.
                 BlobClient blob = container.GetBlobClient(blobName);
 
                 // The previous call gets the blob's properties, so it's not necessary to call FetchAttributes
@@ -1162,17 +1155,17 @@ namespace BlobStorage
                     blob = container.GetBlobClient(blobName);
 
                     Dictionary<string, string> metadata = new Dictionary<string, string>();
-
-                    await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"));
+                    
                     // Set some metadata on the blob.
                     metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
                     metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
-
+                    
+                    await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"));
                     await blob.SetMetadataAsync(metadata);
                 }
             }
             catch (RequestFailedException e)
-            {
+            { 
                 Console.WriteLine(e.Message);
                 Console.ReadLine();
                 throw;
@@ -1237,12 +1230,8 @@ namespace BlobStorage
 
             try
             {
-                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(string.Format("Base blob: {0}", baseBlob.Uri.ToString()))))
-                {
-                    // Upload the blob to create it, with its metadata.
-                    await baseBlob.UploadAsync(stream);
-                }
-                
+                await baseBlob.UploadAsync(BinaryData.FromString($"Base blob : {0}").ToStream());
+
                 // Add blob metadata.
                 Dictionary<string, string> metadata = new Dictionary<string, string>();
                 metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
@@ -1273,14 +1262,14 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CopyBlockBlobAsync(BlobContainerClient container)
         {
-            BlockBlobClient sourceBlob = null;
-            BlockBlobClient destBlob = null;
+            BlobBaseClient sourceBlob = null;
+            BlobBaseClient destBlob = null;
             string leaseId = null;
 
             try
             {
                 string blockblobname = container.GetBlobs().Where(blobs => blobs.Properties.BlobType == BlobType.Block)
-                    .Select(blobs => blobs.Name).FirstOrDefault();
+                  .Select(blobs => blobs.Name).FirstOrDefault();
                 // Get a block blob from the container to use as the source.
                 sourceBlob = container.GetBlockBlobClient(blockblobname);
 
@@ -1353,13 +1342,7 @@ namespace BlobStorage
             try
             {
                 // Create a new block blob comprised of random bytes to use as the source of the copy operation.
-                await sourceBlob.UploadAsync(BinaryData.FromString(bytes.ToString()));
-
-                // Lease the source blob for the copy operation to prevent another client from modifying it.
-                // Specifying null for the lease interval creates an infinite lease.
-                var leaseClient = sourceBlob.GetBlobLeaseClient();
-                var blobLease = await leaseClient.AcquireAsync(TimeSpan.FromSeconds(15));
-                leaseId = blobLease.Value.LeaseId;
+                await sourceBlob.UploadAsync(BinaryData.FromBytes(bytes));
 
                 // Get the ID of the copy operation.
                 CopyFromUriOperation copyFromUriOperation = await destBlob.StartCopyFromUriAsync(sourceBlob.Uri);
@@ -1369,7 +1352,7 @@ namespace BlobStorage
                 System.Threading.Thread.Sleep(1000);
 
                 // Check the copy status. If it is still pending, abort the copy operation.
-                if ((await destBlob.GetPropertiesAsync()).Value.CopyStatus == CopyStatus.Pending)
+                if (!copyFromUriOperation.HasCompleted)
                 {
                     await destBlob.AbortCopyFromUriAsync(copyId);
                     Console.WriteLine("Copy operation {0} has been aborted.", copyId);
@@ -1419,14 +1402,17 @@ namespace BlobStorage
         {
             // Create an array of random bytes, of the specified size.
             byte[] randomBytes = new byte[5 * 1024 * 1024];
-            Random rnd = new Random();
-            rnd.NextBytes(randomBytes);
+            
+            // Specify the block size as 256 KB.
+            int blockSize = 256 * 1024;
+
+            for (int index = 0; index < randomBytes.Length; index += blockSize)
+            {
+                new MemoryStream(randomBytes, index, Math.Min(blockSize, randomBytes.Length));
+            }
 
             // Get a reference to a new block blob.
             BlockBlobClient blob = container.GetBlockBlobClient("sample-blob-" + Guid.NewGuid());
-
-            // Specify the block size as 256 KB.
-            int blockSize = 256 * 1024;
 
             MemoryStream msWrite = null;
 
@@ -1510,7 +1496,7 @@ namespace BlobStorage
         /// <summary>
         /// Reads the blob's block list, and indicates whether the blob has been committed.
         /// </summary>
-        /// <param name="blob">A BlobClient object.</param>
+        /// <param name="blob">A BlockBlobClient object.</param>
         /// <returns>A Task object.</returns>
         private static async Task ReadBlockListAsync(BlockBlobClient blob)
         {
@@ -1594,7 +1580,6 @@ namespace BlobStorage
             // Write operation: Add metadata to the blob
             try
             {
-                string rnd = new Random().Next().ToString();
                 string metadataName = "name";
                 string metadataValue = "value";
                 IDictionary<string, string> metadata = new Dictionary<string, string>();
@@ -1702,7 +1687,7 @@ namespace BlobStorage
 
             try
             {
-                await blob.UploadAsync(BinaryData.FromString(sampleBytes.ToString()));
+                await blob.UploadAsync(BinaryData.FromBytes(sampleBytes));
             }
             catch (RequestFailedException e)
             {
@@ -1786,12 +1771,12 @@ namespace BlobStorage
             }
         }
 
-            private static byte[] GetRandomBuffer(int size)
-            {
-                byte[] buffer = new byte[size];
-                Random random = new Random();
-                random.NextBytes(buffer);
-                return buffer;
-            }
+        private static byte[] GetRandomBuffer(int size)
+        {
+            byte[] buffer = new byte[size];
+            Random random = new Random();
+            random.NextBytes(buffer);
+            return buffer;
         }
     }
+}
