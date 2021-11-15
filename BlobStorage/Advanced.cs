@@ -793,7 +793,6 @@ namespace BlobStorage
                 Console.WriteLine("Additional error information: " + e.Message);
                 Console.WriteLine();
             }
-
             catch (RequestFailedException e)
             {
                 Console.WriteLine(e.Message);
@@ -823,8 +822,6 @@ namespace BlobStorage
                 Console.ReadLine();
                 throw;
             }
-
-
             Console.WriteLine();
 
             // Delete operation: Delete the blob we created above.
@@ -846,8 +843,6 @@ namespace BlobStorage
                 Console.ReadLine();
                 throw;
             }
-
-
             Console.WriteLine();
         }
 
@@ -1154,8 +1149,10 @@ namespace BlobStorage
                     metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
                     metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
 
-                    await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"));
-                    await blob.SetMetadataAsync(metadata);
+                    await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"), new BlobUploadOptions
+                    {
+                        Metadata = metadata
+                    });
                 }
             }
             catch (RequestFailedException e)
@@ -1194,13 +1191,16 @@ namespace BlobStorage
                         // Get a reference to the blob.
                         blob = container.GetBlobClient(blobName);
 
-                        // Write the blob URI to its contents.
-                        await blob.UploadAsync(BinaryData.FromString($"Absolute URI to blob: " + blob.Uri.AbsoluteUri + "."));
                         Dictionary<string, string> metadata = new Dictionary<string, string>();
                         // Set some metadata on the blob.
                         metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
                         metadata.Add("TimeCreated", DateTime.UtcNow.ToLongTimeString());
-                        await blob.SetMetadataAsync(metadata);
+
+                        // Write the blob URI to its contents.
+                        await blob.UploadAsync(BinaryData.FromString($"Absolute URI to blob: " + blob.Uri.AbsoluteUri + "."), new BlobUploadOptions
+                        {
+                            Metadata = metadata
+                        });
                     }
                 }
             }
@@ -1219,17 +1219,18 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CreateBlockBlobSnapshotAsync(BlobContainerClient container)
         {
-            // Create a new block blob in the container.
-            BlockBlobClient baseBlob = container.GetBlockBlobClient("sample-base-blob.txt");
+            // Create a new blob in the container.
+            BlobClient baseBlob = container.GetBlobClient("sample-base-blob.txt");
 
             try
             {
-                await baseBlob.UploadAsync(BinaryData.FromString($"Base blob : {0}").ToStream());
-
                 // Add blob metadata.
                 Dictionary<string, string> metadata = new Dictionary<string, string>();
                 metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
-                await baseBlob.SetMetadataAsync(metadata);
+                await baseBlob.UploadAsync(BinaryData.FromString($"Base blob: {0}"), new BlobUploadOptions
+                {
+                    Metadata = metadata
+                });
 
                 // Sleep 5 seconds.
                 await Task.Delay(5000);
