@@ -922,7 +922,7 @@ namespace BlobStorage
         /// <param name="dir">A BlobContainerClient object.</param>
         private static async IAsyncEnumerable<string> PrintVirtualDirectoryProperties(BlobContainerClient container, string root = "/")
         {
-            Queue<string> remainingFolders = new Queue<string>();
+            var remainingFolders = new Queue<string>();
             remainingFolders.Enqueue(root);
             while (remainingFolders.Count > 0)
             {
