@@ -751,7 +751,7 @@ namespace BlobStorage
             // authentication information on the URI.
 
             // Return a reference to the container using the SAS URI.
-            BlobContainerClient container = new BlobContainerClient(sasUri);
+            var container = new BlobContainerClient(sasUri);
 
             // Return a reference to a blob to be created in the container.
             BlobClient blob = container.GetBlobClient(blobName);
