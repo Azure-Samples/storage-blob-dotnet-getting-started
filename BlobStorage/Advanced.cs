@@ -1223,8 +1223,7 @@ namespace BlobStorage
             try
             {
                 // Add blob metadata.
-                Dictionary<string, string> metadata = new Dictionary<string, string>();
-                metadata.Add("ApproxBlobCreatedDate", DateTime.UtcNow.ToString());
+                var metadata = new Dictionary<string, string> { {"ApproxBlobCreatedDate", DateTime.UtcNow.ToString()} };
                 await baseBlob.UploadAsync(BinaryData.FromString($"Base blob: {0}"), new BlobUploadOptions
                 {
                     Metadata = metadata
