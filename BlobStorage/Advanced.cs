@@ -232,7 +232,7 @@ namespace BlobStorage
 
             string sharedAccessPolicyName = "sample-policy-" + DateTime.Now.Ticks.ToString();
 
-            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
+            var storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
 
             // Create the container if it does not already exist.
             await container.CreateIfNotExistsAsync();
