@@ -153,7 +153,7 @@ namespace BlobStorage
             Uri containerUri = container.Uri;
 
             // Note that we obtain the container reference using only the URI. No account credentials are used.
-            BlobContainerClient publicContainer = new BlobContainerClient(containerUri);
+            var publicContainer = new BlobContainerClient(containerUri);
             Console.WriteLine("Read container metadata anonymously");
             await PrintContainerPropertiesAndMetadataAsync(container);
 
