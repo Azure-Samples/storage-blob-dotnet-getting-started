@@ -864,7 +864,7 @@ namespace BlobStorage
             Console.WriteLine("\t BlobType: {0}", (await blob.GetPropertiesAsync()).Value.BlobType);
 
             // If the blob is a snapshot, write out snapshot properties.
-            BlobUriBuilder builder = new BlobUriBuilder(blob.Uri);
+            var builder = new BlobUriBuilder(blob.Uri);
             if (builder.Snapshot != null)
             {
                 blob.CreateSnapshot();
