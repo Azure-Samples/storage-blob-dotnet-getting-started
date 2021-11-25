@@ -428,7 +428,7 @@ namespace BlobStorage
             {
                 // Ensure the Azurite emulator is running if using the Azurite connection string.
                 Console.WriteLine(e.Message);
-                Console.WriteLine("If you are running with the default connection string, please make sure you have started the Azurite. Press the Windows key and type Azure Storage to select and run it from the list of applications - then restart the sample.");
+                Console.WriteLine("If you're running with the default connection string, make sure you've started the Azurite emulator. Press the Windows key and type Azure Storage to select and run it from the list of apps. Then restart the sample.");
                 Console.ReadLine();
                 throw;
             }
