@@ -283,7 +283,7 @@ namespace BlobStorage
                 serviceProperties.Logging.Read = true;
                 serviceProperties.Logging.Delete = true;
                 serviceProperties.Logging.Write = true;
-                BlobRetentionPolicy blobRetentionPolicy = new BlobRetentionPolicy();
+                var blobRetentionPolicy = new BlobRetentionPolicy();
                 blobRetentionPolicy.Days = 14;
                 blobRetentionPolicy.Enabled = true;
                 serviceProperties.Logging.RetentionPolicy.Enabled = true;
