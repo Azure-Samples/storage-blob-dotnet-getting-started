@@ -1542,7 +1542,7 @@ namespace BlobStorage
             // Try performing blob operations using the SAS provided.
 
             // Return a reference to the blob using the SAS URI.
-            BlobClient blob = new BlobClient(sasUri);
+            var blob = new BlobClient(sasUri);
 
             // Create operation: Upload a blob with the specified name to the container.
             // If the blob does not exist, it will be created. If it does exist, it will be overwritten.
