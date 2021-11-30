@@ -80,7 +80,6 @@ namespace BlobStorage
                 // the azurite is not running.
                 await container.CreateIfNotExistsAsync();
             }
-            
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
