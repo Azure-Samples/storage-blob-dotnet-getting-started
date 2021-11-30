@@ -50,7 +50,8 @@ namespace BlobStorage
         //      2. Set breakpoints and run the project using F10. 
         // 
         // To run the sample using the Storage Service:
-        //      1. Open the app.config file and comment out the connection string and account for the Azurite and
+        //      1. Open the app.config file and comment out the connection string and account for the Azurite emulator and
+
         //         uncomment the connection string and account for the storage service (AccountName=[]...)
         //      2. Create a Storage Account through the Azure Portal and provide your [AccountName] and [AccountKey] in 
         //         the App.Config file. See http://go.microsoft.com/fwlink/?LinkId=325277 for more information.
