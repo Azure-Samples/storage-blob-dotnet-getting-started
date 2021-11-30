@@ -1524,7 +1524,7 @@ namespace BlobStorage
             };
 
             var sas = policy.ToSasQueryParameters(storageSharedKeyCredential).ToString();
-            UriBuilder sasUri = new UriBuilder(container.GetBlobClient(blobName).Uri);
+            var sasUri = new UriBuilder(container.GetBlobClient(blobName).Uri);
             sasUri.Query = sas;
             //Return the URI string for the container, including the SAS token.
             return sasUri.Uri;
