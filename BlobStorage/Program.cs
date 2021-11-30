@@ -41,7 +41,8 @@ namespace BlobStorage
     public class Program
     {
         // *************************************************************************************************************************
-        // Instructions: This sample can be run using either the Azurite that installs as part of this SDK - or by
+        // Instructions: This sample can be run using either the Azurite emulator that installs as part of this SDK - or by
+
         // updating the App.Config file with your AccountName and Key.
         //
         // To run the sample using the Azurite (default option):
