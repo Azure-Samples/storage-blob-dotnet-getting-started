@@ -149,11 +149,7 @@ namespace BlobStorage
             // Clients can enumerate blobs within the container via anonymous request, but cannot enumerate containers.
             await SetAnonymousAccessLevelAsync(container, PublicAccessType.BlobContainer);
 
-            // Try an anonymous operation to read container properties and metadata.
-            Uri containerUri = container.Uri;
-
             // Note that we obtain the container reference using only the URI. No account credentials are used.
-            var publicContainer = new BlobContainerClient(containerUri);
             Console.WriteLine("Read container metadata anonymously");
             await PrintContainerPropertiesAndMetadataAsync(container);
 
@@ -201,7 +197,7 @@ namespace BlobStorage
             // To create and copy a large blob, uncomment this method.
             // By default it creates a 100 MB blob and then copies it; change the value of the sizeInMb parameter 
             // to create a smaller or larger blob.
-            // await CopyLargeBlob(container, 100);
+            //await CopyLargeBlob(container, 100);
 
             // Upload a blob in blocks.
             await UploadBlobInBlocksAsync(container);
@@ -1394,18 +1390,15 @@ namespace BlobStorage
         {
             // Create an array of random bytes, of the specified size.
             byte[] randomBytes = new byte[5 * 1024 * 1024];
-
-            // Specify the block size as 256 KB.
-            int blockSize = 256 * 1024;
-
-            for (int index = 0; index < randomBytes.Length; index += blockSize)
-            {
-                new MemoryStream(randomBytes, index, Math.Min(blockSize, randomBytes.Length));
-            }
-
+            Random rnd = new Random();
+            rnd.NextBytes(randomBytes);
+            
             // Get a reference to a new block blob.
             BlockBlobClient blob = container.GetBlockBlobClient("sample-blob-" + Guid.NewGuid());
-
+           
+            // Specify the block size as 256 KB.
+            int blockSize = 256 * 1024;
+            
             MemoryStream msWrite = null;
 
             // Create new stream of bytes.
