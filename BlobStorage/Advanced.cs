@@ -360,7 +360,7 @@ namespace BlobStorage
                 // Note that passing in null for the maxResults parameter returns the maximum number of results (up to 5000).
                 // Requesting the container's metadata as part of the listing operation populates the metadata, 
                 // so it's not necessary to call GetProperties() to read the metadata.
-                var containers = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
+                AsyncPageable<BlobContainerItem> containers = blobServiceClient.GetBlobContainersAsync(BlobContainerTraits.Metadata, prefix: prefix);
 
                 // Enumerate the containers returned.
                 await foreach (var container in containers)
@@ -542,9 +542,9 @@ namespace BlobStorage
                 await PrintContainerLeasePropertiesAsync(container1);
 
                 // Acquire the lease.
-                var leaseclient1 = container1.GetBlobLeaseClient();
-                var containerLease1 = await leaseclient1.AcquireAsync(leaseDuration);
-                leaseId = containerLease1.Value.LeaseId;
+                BlobLeaseClient leaseclient1 = container1.GetBlobLeaseClient();
+                BlobLease containerLease1 = await leaseclient1.AcquireAsync(leaseDuration);
+                leaseId = containerLease1.LeaseId;
                 // Get container properties again to see that the container is leased.
                 await PrintContainerLeasePropertiesAsync(container1);
 
@@ -561,9 +561,9 @@ namespace BlobStorage
                 await container2.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseClient2 = container2.GetBlobLeaseClient();
-                var containerLease2 = await leaseClient2.AcquireAsync(leaseDuration);
-                leaseId = containerLease2.Value.LeaseId;
+                BlobLeaseClient leaseClient2 = container2.GetBlobLeaseClient();
+                BlobLease containerLease2 = await leaseClient2.AcquireAsync(leaseDuration);
+                leaseId = containerLease2.LeaseId;
 
                 // Break the lease. Passing null indicates that the break interval will be the remainder of the current lease.
                 await leaseClient2.BreakAsync(null);
@@ -586,12 +586,12 @@ namespace BlobStorage
                 await container3.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseClient3 = container3.GetBlobLeaseClient();
-                var containerLease3 = await leaseClient3.AcquireAsync(leaseDuration);
-                leaseId = containerLease3.Value.LeaseId;
+                BlobLeaseClient leaseClient3 = container3.GetBlobLeaseClient();
+                BlobLease containerLease3 = await leaseClient3.AcquireAsync(leaseDuration);
+                leaseId = containerLease3.LeaseId;
 
                 // Break the lease. Passing 0 breaks the lease immediately.
-                var result = await leaseClient3.BreakAsync(new TimeSpan(0));
+                Response<BlobLease> result = await leaseClient3.BreakAsync(new TimeSpan(0));
 
                 // Get container properties to see that the lease is broken.
                 await PrintContainerLeasePropertiesAsync(container3);
@@ -608,9 +608,9 @@ namespace BlobStorage
                 await container4.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseClient4 = container4.GetBlobLeaseClient();
-                var containerLease4 = await leaseClient4.AcquireAsync(leaseDuration);
-                leaseId = containerLease4.Value.LeaseId;
+                BlobLeaseClient leaseClient4 = container4.GetBlobLeaseClient();
+                BlobLease containerLease4 = await leaseClient4.AcquireAsync(leaseDuration);
+                leaseId = containerLease4.LeaseId;
 
                 // Sleep for 16 seconds to allow lease to expire.
                 Console.WriteLine("Waiting 16 seconds for lease break interval to expire....");
@@ -630,9 +630,9 @@ namespace BlobStorage
                 await container5.CreateIfNotExistsAsync();
 
                 // Acquire the lease.
-                var leaseClient5 = container5.GetBlobLeaseClient();
-                var containerLease5 = await leaseClient5.AcquireAsync(leaseDuration);
-                leaseId = containerLease5.Value.LeaseId;
+                BlobLeaseClient leaseClient5 = container5.GetBlobLeaseClient();
+                BlobLease containerLease5 = await leaseClient5.AcquireAsync(leaseDuration);
+                leaseId = containerLease5.LeaseId;
 
                 // Get container properties to see that the container has been leased.
                 await PrintContainerLeasePropertiesAsync(container5);
@@ -1100,19 +1100,16 @@ namespace BlobStorage
                 Console.WriteLine("Blob {0} was last modified at {1} local time.", blobName,
                   (await blob.GetPropertiesAsync()).Value.LastModified.LocalDateTime);
             }
+            catch (RequestFailedException e) when (e.Status == 404)
+            {
+                Console.WriteLine("Blob {0} does not exist.", blobName);
+                Console.WriteLine("Additional error information: " + e.Message);
+            }
             catch (RequestFailedException e)
             {
-                if (e.Status == 404)
-                {
-                    Console.WriteLine("Blob {0} does not exist.", blobName);
-                    Console.WriteLine("Additional error information: " + e.Message);
-                }
-                else
-                {
-                    Console.WriteLine(e.Message);
-                    Console.ReadLine();
-                    throw;
-                }
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
+                throw;
             }
             Console.WriteLine();
         }
