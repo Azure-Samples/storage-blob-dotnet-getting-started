@@ -213,7 +213,6 @@ namespace BlobStorage
         /// <returns>A Task object.</returns>
         private static async Task CallSasSamplesAsync(BlobContainerClient container)
         {
-
             const string BlobName1 = "sasBlob1.txt";
             const string BlobContent1 = "Blob created with an ad-hoc SAS granting write permissions on the container.";
 
