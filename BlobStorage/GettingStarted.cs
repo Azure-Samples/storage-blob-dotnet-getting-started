@@ -142,7 +142,7 @@ namespace BlobStorage
             const string ImageToUpload = "HelloWorld.png";
             string containerName = ContainerPrefix + Guid.NewGuid();
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
-            StorageSharedKeyCredential storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
+            var storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
             // Get an account SAS token.
             SasQueryParameters sasToken = GetAccountSASToken(storageSharedKeyCredential);
 
