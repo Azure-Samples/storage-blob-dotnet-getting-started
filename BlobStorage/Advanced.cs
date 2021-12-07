@@ -1185,7 +1185,11 @@ namespace BlobStorage
                         blob = container.GetBlobClient(blobName);
 
                         // Set some metadata on the blob.
-                        var metadata = new Dictionary<string, string> { {"DateCreated", DateTime.UtcNow.ToLongDateString()}, {"TimeCreated", DateTime.UtcNow.ToLongTimeString()} };
+                        var metadata = new Dictionary<string, string>
+                        {
+                          {"DateCreated", DateTime.UtcNow.ToLongDateString()},
+                          {"TimeCreated", DateTime.UtcNow.ToLongTimeString()}
+                        };
 
                         // Write the blob URI to its contents.
                         await blob.UploadAsync(BinaryData.FromString($"Absolute URI to blob: " + blob.Uri.AbsoluteUri + "."), new BlobUploadOptions
