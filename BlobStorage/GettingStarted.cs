@@ -306,7 +306,7 @@ namespace BlobStorage
             // Permissions: Read, Write, List, Create, Delete
             // ResourceType: Container
             // Expires in 24 hours
-            AccountSasBuilder accountSasBuilder = new AccountSasBuilder
+            var accountSasBuilder = new AccountSasBuilder
             {
                 // Allow access to blobs
                 Services = AccountSasServices.Blobs,
