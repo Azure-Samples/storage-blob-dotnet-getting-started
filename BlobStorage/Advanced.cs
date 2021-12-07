@@ -1140,8 +1140,6 @@ namespace BlobStorage
                       { "TimeCreated", DateTime.UtcNow.ToLongTimeString() }
                     };
 
-                    // Set some metadata on the blob.
-
                     await blob.UploadAsync(BinaryData.FromString($"This is blob {blobName}"), new BlobUploadOptions
                     {
                         Metadata = metadata
