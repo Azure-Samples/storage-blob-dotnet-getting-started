@@ -1135,7 +1135,10 @@ namespace BlobStorage
                     // Get a reference to the blob.
                     blob = container.GetBlobClient(blobName);
 
-                    Dictionary<string, string> metadata = new Dictionary<string, string>();
+                    var metadata = new Dictionary<string, string> {
+                      { "DateCreated", DateTime.UtcNow.ToLongDateString() },
+                      { "TimeCreated", DateTime.UtcNow.ToLongTimeString() }
+                    };
 
                     // Set some metadata on the blob.
                     metadata.Add("DateCreated", DateTime.UtcNow.ToLongDateString());
