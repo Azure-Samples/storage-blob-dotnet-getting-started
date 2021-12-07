@@ -272,7 +272,7 @@ namespace BlobStorage
 
             // Read from a page blob
             Console.WriteLine("5. Read from a Page Blob");
-            HttpRange httpRange = new HttpRange(0, samplePagedata.Count());
+            var httpRange = new HttpRange(0, samplePagedata.Count());
             var downloadInfo = await pageBlob.DownloadAsync(httpRange);
 
             // Clean up after the demo 
