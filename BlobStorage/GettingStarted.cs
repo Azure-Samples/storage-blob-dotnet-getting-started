@@ -17,13 +17,11 @@
 namespace BlobStorage
 {
     using Azure;
-    using Azure.Storage;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Blobs.Specialized;
     using Azure.Storage.Sas;
     using System;
-    using System.Configuration;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
@@ -41,7 +39,7 @@ namespace BlobStorage
     {
         // Prefix for containers created by the sample.
         private const string ContainerPrefix = "sample-";
-
+        
         /// <summary>
         /// Calls each of the methods in the getting started samples.
         /// </summary>
@@ -142,14 +140,13 @@ namespace BlobStorage
             const string ImageToUpload = "HelloWorld.png";
             string containerName = ContainerPrefix + Guid.NewGuid();
             BlobServiceClient blobServiceClient = Common.CreateblobServiceClientFromConnectionString();
-            var storageSharedKeyCredential = new StorageSharedKeyCredential(blobServiceClient.AccountName, ConfigurationManager.AppSettings.Get("StorageAccountKey"));
             // Get an account SAS token.
-            SasQueryParameters sasToken = GetAccountSASToken(storageSharedKeyCredential);
+            Uri sasToken = GetAccountSASToken(blobServiceClient);
 
             // Informational: Print the Account SAS Signature and Token.
             Console.WriteLine();
-            Console.WriteLine("Account SAS Signature: " + sasToken.Signature);
-            Console.WriteLine("Account SAS Token: " + sasToken.ToString());
+            //Console.WriteLine("Account SAS Signature: " + sasToken.Signature);
+            Console.WriteLine("Account SAS Token: " + sasToken.Query);
             Console.WriteLine();
 
             // Get the URI for the container.
@@ -157,7 +154,8 @@ namespace BlobStorage
 
             // Get a reference to a container using the URI and the SAS token.
             var sasUri = new UriBuilder(containerUri);
-            sasUri.Query = sasToken.ToString();
+
+            sasUri.Query = sasToken.Query.Substring(1, sasToken.Query.Length - 1);
             var container = new BlobContainerClient(sasUri.Uri);
 
             try
@@ -300,28 +298,14 @@ namespace BlobStorage
         /// Creates an Account SAS Token
         /// </summary>
         /// <returns>A SAS token.</returns>
-        private static SasQueryParameters GetAccountSASToken(StorageSharedKeyCredential sharedKeyCredential)
+        private static Uri GetAccountSASToken(BlobServiceClient blobServiceClient)
         {
             // Create a new access policy for the account with the following properties:
             // Permissions: Read, Write, List, Create, Delete
             // ResourceType: Container
             // Expires in 24 hours
-            var accountSasBuilder = new AccountSasBuilder
-            {
-                // Allow access to blobs
-                Services = AccountSasServices.Blobs,
-
-                // Allow access to the service level APIs
-                ResourceTypes = AccountSasResourceTypes.All,
-
-                // Access expires in 1 hour!
-                ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
-            };
-
-            accountSasBuilder.SetPermissions(AccountSasPermissions.All);
-
-            var sasToken = accountSasBuilder.ToSasQueryParameters(sharedKeyCredential);
-
+            var sasToken = blobServiceClient.GenerateAccountSasUri(AccountSasPermissions.Read | AccountSasPermissions.Create | AccountSasPermissions.Write | AccountSasPermissions.List | AccountSasPermissions.Delete, DateTimeOffset.UtcNow.AddHours(1), AccountSasResourceTypes.All);
+           
             // Return the SASToken
             return sasToken;
         }

@@ -849,7 +849,7 @@ namespace BlobStorage
         /// Reads the blob's properties.
         /// </summary>
         /// <param name="blob">A BlobClient object. All blob types (block blob, append blob, and page blob) are derived from BlobClient.</param>
-        private static async Task PrintBlobPropertiesAndMetadata(BlobContainerClient container, BlobClient blob)
+        private static async Task PrintBlobPropertiesAndMetadata(BlobBaseClient blob)
         {
             // Write out properties that are common to all blob types.
             Console.WriteLine();
@@ -968,7 +968,7 @@ namespace BlobStorage
                         // A flat listing operation returns only blobs, not virtual directories.
                         // Write out blob properties and metadata.
                         BlobClient blob = container.GetBlobClient(blobItem.Name);
-                        await PrintBlobPropertiesAndMetadata(container, blob);
+                        await PrintBlobPropertiesAndMetadata(blob);
 
                     }
                 }
@@ -1032,7 +1032,7 @@ namespace BlobStorage
                         Console.WriteLine(blobItem.Blob.Name);
                         BlobClient blob = container.GetBlobClient(blobItem.Blob.Name);
                         // Write out blob properties and metadata.
-                        await PrintBlobPropertiesAndMetadata(container, blob);
+                        await PrintBlobPropertiesAndMetadata(blob);
                     }
                 }
                 Console.WriteLine();
@@ -1218,7 +1218,7 @@ namespace BlobStorage
             try
             {
                 // Add blob metadata.
-                var metadata = new Dictionary<string, string> { {"ApproxBlobCreatedDate", DateTime.UtcNow.ToString()} };
+                var metadata = new Dictionary<string, string> { { "ApproxBlobCreatedDate", DateTime.UtcNow.ToString() } };
                 await baseBlob.UploadAsync(BinaryData.FromString($"Base blob: {0}"), new BlobUploadOptions
                 {
                     Metadata = metadata
@@ -1391,18 +1391,21 @@ namespace BlobStorage
             byte[] randomBytes = new byte[5 * 1024 * 1024];
             Random rnd = new Random();
             rnd.NextBytes(randomBytes);
-            
+
             // Get a reference to a new block blob.
             BlockBlobClient blob = container.GetBlockBlobClient("sample-blob-" + Guid.NewGuid());
-           
+
             // Specify the block size as 256 KB.
             int blockSize = 256 * 1024;
-            
+
             MemoryStream msWrite = null;
 
-            // Create new stream of bytes.
-            msWrite = new MemoryStream(randomBytes);
-            msWrite.Position = 0;
+            for (int index = 0; index < randomBytes.Length; index += blockSize)
+            {
+                // Create new stream of bytes.
+                msWrite = new MemoryStream(randomBytes, index, Math.Min(blockSize, randomBytes.Length - index));
+                msWrite.Position = 0;
+            }
             using (msWrite)
             {
                 long streamSize = msWrite.Length;
