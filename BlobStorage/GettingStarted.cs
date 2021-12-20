@@ -154,7 +154,6 @@ namespace BlobStorage
 
             // Get a reference to a container using the URI and the SAS token.
             var sasUri = new UriBuilder(containerUri);
-
             sasUri.Query = sasToken.Query.Substring(1, sasToken.Query.Length - 1);
             var container = new BlobContainerClient(sasUri.Uri);
 
