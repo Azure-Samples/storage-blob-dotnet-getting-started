@@ -18,8 +18,8 @@
 namespace BlobStorage
 {
     using System;
-    using Microsoft.Azure;
-    using Microsoft.Azure.Storage;
+    using System.Configuration;
+    using Azure.Storage.Blobs;
 
     /// <summary>
     /// Contains public method for validating the storage connection string.
@@ -30,15 +30,15 @@ namespace BlobStorage
         /// Validates the connection string information in app.config and throws an exception if it looks like 
         /// the user hasn't updated this to valid values. 
         /// </summary>
-        /// <returns>CloudStorageAccount object</returns>
-        public static CloudStorageAccount CreateStorageAccountFromConnectionString()
+        /// <returns>BlobServiceClient object</returns>
+        public static BlobServiceClient CreateblobServiceClientFromConnectionString()
         {
-            CloudStorageAccount storageAccount;
+            BlobServiceClient blobServiceClient;
             const string Message = "Invalid storage account information provided. Please confirm the AccountName and AccountKey are valid in the app.config file - then restart the sample.";
 
             try
             {
-                storageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+                blobServiceClient = new BlobServiceClient(ConfigurationManager.AppSettings.Get("StorageConnectionString"));
             }
             catch (FormatException)
             {
@@ -53,7 +53,7 @@ namespace BlobStorage
                 throw;
             }
 
-            return storageAccount;
+            return blobServiceClient;
         }    
     }
 }
